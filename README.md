@@ -215,38 +215,64 @@ source("analysis.R")
 ```
 ---
 ```
-1. Environment Setup & Package Installation
-r# Install BiocManager
+# =============================================================================
+# scRNA-seq Analysis: 3k Human Squamous Cell Lung Carcinoma DTCs
+# Platform: 10x Chromium X, 5' Gene Expression
+# Tool: Seurat v5
+#
+# Research Questions Addressed:
+#   Q1. What cell populations exist in this DTC sample?
+#       (Tumor cells vs Tumor Microenvironment)
+#   Q2. Is there intra-tumor heterogeneity?
+#       (Tumor subclones with distinct gene programs)
+#   Q3. Which tumor cells are undergoing EMT / metastatic transition?
+#   Q4. Are there proliferating tumor cell subpopulations?
+#   Q5. What is the immune contexture of this DTC sample?
+#       (T cell subtypes, exhaustion status, NK, B, Myeloid)
+#   Q6. Are checkpoint / immunotherapy target genes expressed?
+#       (PD-1/PD-L1, CTLA-4, TIM-3, LAG-3, TIGIT)
+#   Q7. What cancer hallmark pathways are active per cell type?
+#       (Hypoxia, MYC, G2M, TNFa-NFkB, IFN-gamma)
+#   Q8. What stromal populations support the tumor?
+#       (Cancer-associated fibroblasts, Endothelial cells)
+# =============================================================================
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SECTION 1: INSTALL PACKAGES
+# ─────────────────────────────────────────────────────────────────────────────
+
 install.packages("BiocManager")
+BiocManager::install(
+  c("ComplexHeatmap", "celldex", "SingleR", "AUCell",
+    "SingleCellExperiment", "GSEABase", "BiocFileCache"),
+  ask = FALSE, update = FALSE
+)
 
-# Install Bioconductor packages
-BiocManager::install(c("ComplexHeatmap", "celldex", "SingleR", "AUCell"), 
-                     ask = FALSE, update = FALSE)
-
-# Install CRAN packages
 install.packages(c(
-  "ggplot2", "ggrepel", "RColorBrewer", "patchwork",
-  "dplyr", "tibble", "viridis", "Seurat", "pheatmap",
-  "msigdbr", "gridExtra"
+  "Seurat", "SeuratObject", "ggplot2", "ggrepel",
+  "RColorBrewer", "patchwork", "dplyr", "tibble",
+  "viridis", "pheatmap", "msigdbr", "gridExtra",
+  "scales", "ggridges", "cowplot"
 ))
 
-# Install sctransform
-install.packages("sctransform")
-
-# Install BPCells, presto, glmGamPoi from universe repos
 setRepositories(ind = 1:3, addURLs = c(
   'https://satijalab.r-universe.dev',
   'https://bnprks.r-universe.dev/'
 ))
 install.packages(c("BPCells", "presto", "glmGamPoi"))
 
-# Install GitHub packages
 if (!requireNamespace("remotes", quietly = TRUE)) install.packages("remotes")
-remotes::install_github("satijalab/seurat-data", quiet = TRUE)
-remotes::install_github("satijalab/azimuth", quiet = TRUE)
+remotes::install_github("satijalab/seurat-data",     quiet = TRUE)
+remotes::install_github("satijalab/azimuth",         quiet = TRUE)
 remotes::install_github("satijalab/seurat-wrappers", quiet = TRUE)
-2. Load Libraries
-rlibrary(Seurat)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SECTION 2: LOAD LIBRARIES
+# ─────────────────────────────────────────────────────────────────────────────
+
+library(Seurat)
 library(SeuratObject)
 library(ggplot2)
 library(ggrepel)
@@ -264,422 +290,1258 @@ library(viridis)
 library(celldex)
 library(AUCell)
 library(pheatmap)
-library(sctransform)
 library(msigdbr)
 library(GSEABase)
 library(gridExtra)
-3. Load Data & Create Seurat Object
-r# Load the HDF5 file (Chromium 5' v2 output)
-data <- Read10X_h5("SC5pv2_GEX_Human_Lung_Carcinoma_DTC_filtered_feature_bc_matrix.h5")
+library(scales)
+library(cowplot)
+
+# ── Output directories ────────────────────────────────────────────────────────
+dir.create("output",               showWarnings = FALSE)
+dir.create("output/figures",       showWarnings = FALSE)
+dir.create("output/tables",        showWarnings = FALSE)
+
+set.seed(42)   # reproducibility
+
+cat("=== Lung Carcinoma DTC Analysis — Seurat v5 ===\n")
+cat("Seurat version:", as.character(packageVersion("Seurat")), "\n\n")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SECTION 3: LOAD DATA
+# ─────────────────────────────────────────────────────────────────────────────
+# Data: 3k Human Squamous Cell Lung Carcinoma DTCs
+# Platform: 10x Chromium X, 5' GEX
+# 36,601 genes × 2,616 cells (pre-Cell Ranger filtering)
+
+data <- Read10X_h5(
+  "SC5pv2_GEX_Human_Lung_Carcinoma_DTC_filtered_feature_bc_matrix.h5"
+)
 
 # Create Seurat object
-# 36601 features x 2616 cells
-seurat_obj <- CreateSeuratObject(
-  counts  = data,
-  project = "LungCarcinomaDTC",
-  min.cells    = 3,    # keep genes detected in ≥ 3 cells
-  min.features = 200   # keep cells with ≥ 200 genes detected
+# min.cells = 3   : remove genes detected in < 3 cells (noise reduction)
+# min.features = 200 : remove empty droplets / debris
+lung <- CreateSeuratObject(
+  counts       = data,
+  project      = "LungCarcinomaDTC",
+  min.cells    = 3,
+  min.features = 200
 )
 
-seurat_obj
-dim(seurat_obj)
-4. Quality Control (QC)
-r# --- Compute QC metrics ---
-seurat_obj[["percent.mt"]] <- PercentageFeatureSet(seurat_obj, pattern = "^MT-")
-seurat_obj[["percent.rb"]] <- PercentageFeatureSet(seurat_obj, pattern = "^RP[SL]")
+cat("Initial object:\n")
+print(lung)
+# Expected: ~36,000 features × ~2,600 cells
 
-# Inspect metadata
-head(seurat_obj@meta.data, 5)
 
-# --- Visualize before filtering ---
-VlnPlot(seurat_obj,
-        features = c("nFeature_RNA", "nCount_RNA", "percent.mt", "percent.rb"),
-        ncol = 4, pt.size = 0.1) +
-  ggtitle("QC Metrics Before Filtering")
+# ─────────────────────────────────────────────────────────────────────────────
+# SECTION 4: QUALITY CONTROL
+# ─────────────────────────────────────────────────────────────────────────────
+# NOTE — Tumor-specific QC thresholds:
+#
+# Threshold         PBMC (healthy)    Lung Carcinoma DTC
+# ─────────────────────────────────────────────────────
+# nFeature_RNA max  2,500             6,000–8,000
+# percent.mt max    5%                20%
+#
+# Reasons:
+#  • Carcinoma cells are large and transcriptionally complex → more genes/UMIs
+#  • DTCs under metastatic stress → elevated mitochondrial activity is expected
+#  • Chromium X has higher sensitivity → genuine cells may have higher counts
+#  Applying PBMC thresholds would DISCARD real tumor cells.
 
-# Scatter plots: count vs mt% and count vs feature count
-p1 <- FeatureScatter(seurat_obj, feature1 = "nCount_RNA", feature2 = "percent.mt") +
-  ggtitle("UMI Count vs Mitochondrial %")
-p2 <- FeatureScatter(seurat_obj, feature1 = "nCount_RNA", feature2 = "nFeature_RNA") +
-  ggtitle("UMI Count vs Gene Count")
-p3 <- FeatureScatter(seurat_obj, feature1 = "nCount_RNA", feature2 = "percent.rb") +
-  ggtitle("UMI Count vs Ribosomal %")
-p1 + p2 + p3
+# ── Compute QC metrics ────────────────────────────────────────────────────────
 
-# --- Filter cells ---
-# Thresholds chosen for a ~2600-cell tumor DTC dataset:
-#   nFeature_RNA > 200       → remove empty droplets
-#   nFeature_RNA < 6000      → remove likely doublets (tumor cells express more genes)
-#   percent.mt   < 20        → tumor datasets tolerate slightly higher mt% than PBMCs
-seurat_obj <- subset(
-  seurat_obj,
-  subset = nFeature_RNA > 200 &
-           nFeature_RNA < 6000 &
-           percent.mt < 20
+# Mitochondrial genes — marker of cellular stress / apoptosis
+lung[["percent.mt"]] <- PercentageFeatureSet(lung, pattern = "^MT-")
+
+# Ribosomal genes — high % can indicate transcriptionally biased cells
+lung[["percent.rb"]] <- PercentageFeatureSet(lung, pattern = "^RP[SL]")
+
+# Log10 of total UMIs — useful for outlier detection on log scale
+lung[["log10_nCount"]] <- log10(lung$nCount_RNA + 1)
+
+cat("QC summary before filtering:\n")
+print(summary(lung@meta.data[, c("nFeature_RNA", "nCount_RNA",
+                                  "percent.mt", "percent.rb")]))
+
+# ── Visualize before filtering ────────────────────────────────────────────────
+
+p_qc1 <- VlnPlot(
+  lung,
+  features = c("nFeature_RNA", "nCount_RNA", "percent.mt", "percent.rb"),
+  ncol = 4, pt.size = 0.1
+) + plot_annotation(title = "QC Metrics — Before Filtering")
+
+ggsave("output/figures/01_QC_violin_before.png",
+       p_qc1, width = 18, height = 5, dpi = 300)
+
+p_scatter1 <- FeatureScatter(lung, "nCount_RNA", "percent.mt") +
+  geom_hline(yintercept = 20, linetype = "dashed", color = "red") +
+  ggtitle("UMI vs Mitochondrial %")
+
+p_scatter2 <- FeatureScatter(lung, "nCount_RNA", "nFeature_RNA") +
+  geom_hline(yintercept = c(200, 6000), linetype = "dashed", color = "red") +
+  ggtitle("UMI vs Gene Count")
+
+p_scatter3 <- FeatureScatter(lung, "nCount_RNA", "percent.rb") +
+  ggtitle("UMI vs Ribosomal %")
+
+ggsave("output/figures/02_QC_scatter_before.png",
+       p_scatter1 + p_scatter2 + p_scatter3,
+       width = 18, height = 5, dpi = 300)
+
+# ── Filter cells ──────────────────────────────────────────────────────────────
+
+cat(sprintf("Cells before QC: %d\n", ncol(lung)))
+
+lung <- subset(
+  lung,
+  subset = nFeature_RNA > 200   &   # remove empty droplets
+           nFeature_RNA < 6000  &   # remove doublets
+           percent.mt   < 20        # remove dying / debris cells
 )
 
-cat("Cells after QC filtering:", ncol(seurat_obj), "\n")
+cat(sprintf("Cells after QC:  %d\n", ncol(lung)))
+cat(sprintf("Genes retained:  %d\n", nrow(lung)))
 
-# --- Visualize after filtering ---
-VlnPlot(seurat_obj,
-        features = c("nFeature_RNA", "nCount_RNA", "percent.mt", "percent.rb"),
-        ncol = 4, pt.size = 0.1) +
-  ggtitle("QC Metrics After Filtering")
-5. Normalization with SCTransform
-r# SCTransform replaces NormalizeData + FindVariableFeatures + ScaleData
-# Automatically regresses out sequencing depth; optionally also regress mt%
-seurat_obj <- SCTransform(
-  seurat_obj,
-  vars.to.regress = "percent.mt",  # regress out mitochondrial contamination
+# ── Visualize after filtering ─────────────────────────────────────────────────
+
+p_qc2 <- VlnPlot(
+  lung,
+  features = c("nFeature_RNA", "nCount_RNA", "percent.mt", "percent.rb"),
+  ncol = 4, pt.size = 0.1
+) + plot_annotation(title = "QC Metrics — After Filtering")
+
+ggsave("output/figures/03_QC_violin_after.png",
+       p_qc2, width = 18, height = 5, dpi = 300)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SECTION 5: NORMALIZATION — SCTransform
+# ─────────────────────────────────────────────────────────────────────────────
+# SCTransform:
+#  • Replaces NormalizeData + FindVariableFeatures + ScaleData
+#  • Uses a regularized negative binomial regression to model UMI counts
+#  • Automatically corrects for sequencing depth differences
+#  • vars.to.regress = "percent.mt" removes mitochondrial contamination signal
+#  • Returns 3,000 variable features by default (better for complex tumor data)
+
+lung <- SCTransform(
+  lung,
+  vars.to.regress = "percent.mt",
+  vst.flavor      = "v2",           # recommended for Seurat v5
   verbose         = FALSE
 )
 
-# Inspect top variable features
-top10_var <- head(VariableFeatures(seurat_obj), 10)
-cat("Top 10 variable features:\n")
-print(top10_var)
+cat("SCTransform complete.\n")
+cat("Variable features (top 10):", head(VariableFeatures(lung), 10), "\n\n")
 
 # Plot variable features
-p_var1 <- VariableFeaturePlot(seurat_obj)
-p_var2 <- LabelPoints(plot = p_var1, points = top10_var, repel = TRUE)
-p_var1 + p_var2
-6. Dimensionality Reduction: PCA
-r# Run PCA on SCT variable features
-seurat_obj <- RunPCA(seurat_obj, features = VariableFeatures(seurat_obj))
+p_hvg <- VariableFeaturePlot(lung)
+p_hvg <- LabelPoints(
+  plot   = p_hvg,
+  points = head(VariableFeatures(lung), 20),
+  repel  = TRUE
+)
+ggsave("output/figures/04_variable_features.png",
+       p_hvg, width = 10, height = 6, dpi = 300)
 
-# Elbow plot: choose number of PCs
-ElbowPlot(seurat_obj, ndims = 40) +
-  ggtitle("Elbow Plot: Variance Explained per PC")
 
-# Inspect top genes driving each PC
-print(seurat_obj[["pca"]], dims = 1:5, nfeatures = 5)
+# ─────────────────────────────────────────────────────────────────────────────
+# SECTION 6: DIMENSIONALITY REDUCTION — PCA
+# ─────────────────────────────────────────────────────────────────────────────
 
-# PCA plots
-VizDimLoadings(seurat_obj, dims = 1:4, reduction = "pca")
-DimPlot(seurat_obj, reduction = "pca") + ggtitle("PCA Plot")
+lung <- RunPCA(lung, features = VariableFeatures(lung), npcs = 50)
 
-# Dimensional heatmaps
-DimHeatmap(seurat_obj, dims = 1:15, cells = 500, balanced = TRUE)
-7. Clustering
-r# Build KNN graph (use dims informed by elbow plot; adjust as needed)
-seurat_obj <- FindNeighbors(seurat_obj, dims = 1:20)
+# Elbow plot — identify how many PCs capture meaningful biological signal
+# Look for the "elbow" where variance drops sharply
+p_elbow <- ElbowPlot(lung, ndims = 40) +
+  geom_vline(xintercept = 25, linetype = "dashed", color = "red") +
+  ggtitle("Elbow Plot — Variance Explained per PC\n(red line = suggested cutoff)")
+ggsave("output/figures/05_elbow_plot.png",
+       p_elbow, width = 8, height = 5, dpi = 300)
 
-# Louvain clustering — resolution 0.5 is a good start for ~2600 cells
-seurat_obj <- FindClusters(seurat_obj, resolution = 0.5)
+# Top gene loadings per PC
+print(lung[["pca"]], dims = 1:5, nfeatures = 5)
 
-cat("Number of clusters found:", length(levels(Idents(seurat_obj))), "\n")
-head(Idents(seurat_obj), 5)
-table(Idents(seurat_obj))
-8. Non-linear Dimensionality Reduction: UMAP & t-SNE
-r# UMAP
-seurat_obj <- RunUMAP(seurat_obj, dims = 1:20)
-DimPlot(seurat_obj, reduction = "umap", label = TRUE, repel = TRUE) +
-  ggtitle("UMAP — Louvain Clusters (Lung Carcinoma DTC)")
+p_pca_load <- VizDimLoadings(lung, dims = 1:4, reduction = "pca")
+ggsave("output/figures/06_PCA_loadings.png",
+       p_pca_load, width = 12, height = 8, dpi = 300)
 
-# t-SNE (alternative view)
-seurat_obj <- RunTSNE(seurat_obj, dims = 1:20, verbose = FALSE)
-DimPlot(seurat_obj, reduction = "tsne", label = TRUE, repel = TRUE) +
-  ggtitle("t-SNE — Louvain Clusters (Lung Carcinoma DTC)")
+p_pca_scatter <- DimPlot(lung, reduction = "pca") +
+  ggtitle("PCA — All Cells")
+ggsave("output/figures/07_PCA_scatter.png",
+       p_pca_scatter, width = 8, height = 6, dpi = 300)
 
-# Side-by-side
-p_umap <- DimPlot(seurat_obj, reduction = "umap", label = TRUE) + ggtitle("UMAP")
-p_tsne <- DimPlot(seurat_obj, reduction = "tsne", label = TRUE) + ggtitle("t-SNE")
-p_umap + p_tsne
-9. Marker Gene Identification
-r# --- Markers for each cluster vs all others ---
-seurat_obj.markers <- FindAllMarkers(
-  seurat_obj,
+# Dimensional heatmaps — which genes drive each PC
+DimHeatmap(lung, dims = 1:15, cells = 500, balanced = TRUE)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SECTION 7: CLUSTERING
+# ─────────────────────────────────────────────────────────────────────────────
+# n_dims = 25 chosen from elbow plot (tumor datasets need more PCs than PBMC
+# because there is more biological complexity — subclones, TME heterogeneity)
+
+N_DIMS <- 25   # adjust based on your elbow plot
+
+lung <- FindNeighbors(lung, dims = 1:N_DIMS)
+
+# Test multiple resolutions — tumor data often needs 0.3–0.8
+lung <- FindClusters(lung, resolution = 0.3)
+lung <- FindClusters(lung, resolution = 0.5)
+lung <- FindClusters(lung, resolution = 0.8)
+
+# Use resolution 0.5 as working clustering
+lung <- FindClusters(lung, resolution = 0.5)
+
+cat("Clusters found (resolution 0.5):", length(levels(Idents(lung))), "\n")
+cat("Cluster sizes:\n")
+print(table(Idents(lung)))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SECTION 8: UMAP + t-SNE
+# ─────────────────────────────────────────────────────────────────────────────
+
+lung <- RunUMAP(lung,  dims = 1:N_DIMS)
+lung <- RunTSNE(lung,  dims = 1:N_DIMS, verbose = FALSE)
+
+p_umap <- DimPlot(lung, reduction = "umap", label = TRUE,
+                   repel = TRUE, label.size = 4) +
+  ggtitle("UMAP — Leiden Clusters\n3k Lung Carcinoma DTCs") +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+
+p_tsne <- DimPlot(lung, reduction = "tsne", label = TRUE,
+                   repel = TRUE, label.size = 4) +
+  ggtitle("t-SNE — Leiden Clusters\n3k Lung Carcinoma DTCs") +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+
+ggsave("output/figures/08_UMAP_clusters.png",
+       p_umap, width = 9, height = 7, dpi = 300)
+ggsave("output/figures/09_tSNE_clusters.png",
+       p_tsne, width = 9, height = 7, dpi = 300)
+ggsave("output/figures/10_UMAP_tSNE_comparison.png",
+       p_umap + p_tsne, width = 18, height = 7, dpi = 300)
+
+# QC overlay on UMAP — flag any low-quality clusters
+p_qc_umap <- FeaturePlot(
+  lung,
+  features  = c("nFeature_RNA", "nCount_RNA", "percent.mt", "percent.rb"),
+  reduction = "umap", ncol = 2
+)
+ggsave("output/figures/11_UMAP_QC_overlay.png",
+       p_qc_umap, width = 12, height = 10, dpi = 300)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SECTION 9: MARKER GENE IDENTIFICATION
+# ─────────────────────────────────────────────────────────────────────────────
+
+lung.markers <- FindAllMarkers(
+  lung,
   only.pos        = TRUE,
   min.pct         = 0.25,
   logfc.threshold = 0.25,
   assay           = "SCT"
 )
 
-# Top 10 markers per cluster (by log2FC)
-top10_markers <- seurat_obj.markers %>%
+# Top 10 markers per cluster by log2FC
+top10 <- lung.markers %>%
   group_by(cluster) %>%
-  slice_max(order_by = avg_log2FC, n = 10)
+  slice_max(order_by = avg_log2FC, n = 10) %>%
+  ungroup()
 
-print(top10_markers)
+write.csv(lung.markers, "output/tables/01_all_cluster_markers.csv",
+          row.names = TRUE)
+write.csv(top10,        "output/tables/02_top10_markers_per_cluster.csv",
+          row.names = FALSE)
 
-# Save markers table
-write.csv(seurat_obj.markers, file = "output/lung_dtc_all_markers.csv", row.names = TRUE)
+cat("Marker genes saved.\n")
 
-# --- Heatmap of top 5 markers per cluster ---
-top5_markers <- seurat_obj.markers %>%
+# Heatmap — top 5 per cluster
+top5 <- lung.markers %>%
   group_by(cluster) %>%
   dplyr::filter(avg_log2FC > 1) %>%
   slice_head(n = 5) %>%
   ungroup()
 
-DoHeatmap(seurat_obj, features = top5_markers$gene, assay = "SCT") +
-  ggtitle("Top 5 Marker Genes per Cluster") + NoLegend()
+p_heatmap <- DoHeatmap(lung, features = top5$gene, assay = "SCT") +
+  NoLegend() +
+  ggtitle("Top 5 Marker Genes per Cluster")
+ggsave("output/figures/12_marker_heatmap.png",
+       p_heatmap, width = 14, height = 10, dpi = 300)
 
-# --- Known lung cancer / immune marker genes ---
-known_markers <- c(
-  "EPCAM", "KRT19", "KRT18",   # Epithelial / tumor cells
-  "VIM", "CDH2", "FN1",        # Mesenchymal / EMT
-  "CD3D", "CD3E",              # T cells
-  "MS4A1", "CD79A",            # B cells
-  "LYZ", "CD14", "FCGR3A",    # Myeloid / Monocytes
-  "NKG7", "GNLY",              # NK cells
-  "PECAM1", "VWF",             # Endothelial
-  "COL1A1", "FAP"              # Fibroblasts
+# Dot plot of top 3 per cluster
+top3 <- lung.markers %>%
+  group_by(cluster) %>%
+  slice_max(avg_log2FC, n = 3) %>%
+  ungroup()
+
+p_dot_markers <- DotPlot(lung, features = unique(top3$gene), assay = "SCT") +
+  RotatedAxis() +
+  ggtitle("Top Marker Genes — Dot Plot")
+ggsave("output/figures/13_marker_dotplot.png",
+       p_dot_markers, width = 16, height = 6, dpi = 300)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SECTION 10: CANONICAL MARKER PANELS
+# ─────────────────────────────────────────────────────────────────────────────
+# Q1: What cell populations exist? Tumor vs TME?
+# These markers define the major cell types expected in a DTC sample
+
+# ── Panel A: Cell type identity markers ───────────────────────────────────────
+panel_identity <- list(
+
+  # Squamous cell carcinoma — the primary tumor cell type
+  "SCC Tumor"       = c("EPCAM", "KRT19", "KRT18", "KRT5", "KRT14",
+                         "TP63", "SOX2", "FGFR1", "EGFR"),
+
+  # Mesenchymal / EMT (epithelial → mesenchymal transition)
+  "EMT / Mesenchymal" = c("VIM", "CDH2", "FN1", "SNAI1", "SNAI2",
+                            "TWIST1", "ZEB1", "ZEB2"),
+
+  # T cells — general
+  "T cells"         = c("CD3D", "CD3E", "CD3G", "TRAC", "TRBC1"),
+
+  # CD8 cytotoxic T cells
+  "CD8 T cells"     = c("CD8A", "CD8B", "GZMB", "GZMK", "PRF1",
+                         "IFNG", "NKG7"),
+
+  # CD4 helper T cells
+  "CD4 T cells"     = c("CD4", "IL7R", "CCR7", "LTB", "SELL"),
+
+  # Regulatory T cells
+  "Treg"            = c("FOXP3", "IL2RA", "CTLA4", "IKZF2"),
+
+  # NK cells
+  "NK cells"        = c("NKG7", "GNLY", "KLRD1", "NCR1", "NCAM1"),
+
+  # B cells
+  "B cells"         = c("MS4A1", "CD79A", "CD74", "IGHM"),
+
+  # Monocytes / Macrophages
+  "Myeloid"         = c("LYZ", "CD14", "FCGR3A", "S100A8", "S100A9",
+                         "CST3", "CTSS"),
+
+  # M2 / Immunosuppressive macrophages
+  "M2 Macrophage"   = c("CD163", "MRC1", "IL10", "CCL18", "TGFB1"),
+
+  # Dendritic cells
+  "Dendritic cells" = c("FCER1A", "CST3", "IL3RA", "CLEC4C"),
+
+  # Cancer-associated fibroblasts
+  "CAF"             = c("COL1A1", "COL3A1", "FAP", "ACTA2",
+                         "PDGFRA", "THY1"),
+
+  # Endothelial cells
+  "Endothelial"     = c("PECAM1", "VWF", "CDH5", "ENG", "CLDN5")
 )
 
-FeaturePlot(
-  seurat_obj,
-  features  = known_markers,
-  reduction = "umap",
-  ncol      = 4,
-  min.cutoff = "q10",
-  max.cutoff = "q90"
-) + ggtitle("Known Lung Cancer & Immune Markers")
+# Filter to genes present in the dataset
+panel_identity_present <- lapply(panel_identity, function(genes) {
+  intersect(genes, rownames(lung))
+})
+panel_identity_present <- Filter(function(x) length(x) > 0,
+                                  panel_identity_present)
 
-DotPlot(seurat_obj, features = known_markers, assay = "SCT") +
-  RotatedAxis() + ggtitle("Marker Expression Across Clusters")
-10. Automated Cell Type Annotation with SingleR
-r# Load reference datasets
-ref_blueprint <- celldex::BlueprintEncodeData()
-ref_hpca      <- celldex::HumanPrimaryCellAtlasData()
+# DotPlot — % expressing + average expression
+p_id_dot <- DotPlot(lung, features = panel_identity_present, assay = "SCT") +
+  RotatedAxis() +
+  scale_color_gradient2(low = "blue", mid = "white", high = "red") +
+  ggtitle("Cell Identity Marker Panel — All Clusters") +
+  theme(axis.text.x = element_text(size = 7))
+ggsave("output/figures/14_identity_marker_dotplot.png",
+       p_id_dot, width = 20, height = 8, dpi = 300)
 
-# Convert Seurat to SingleCellExperiment
-sce_lung <- as.SingleCellExperiment(seurat_obj)
+# UMAP feature plots for key markers
+key_markers <- c("EPCAM", "KRT19", "VIM", "CDH2",
+                  "CD3D", "CD8A", "NKG7", "MS4A1",
+                  "LYZ", "CD163", "COL1A1", "PECAM1")
+key_markers <- intersect(key_markers, rownames(lung))
 
-# Run SingleR with Blueprint/ENCODE (good for immune + cancer cell types)
+p_feature_key <- FeaturePlot(lung, features = key_markers,
+                              reduction = "umap", ncol = 4,
+                              min.cutoff = "q10", max.cutoff = "q90")
+ggsave("output/figures/15_key_markers_featureplot.png",
+       p_feature_key, width = 20, height = 10, dpi = 300)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SECTION 11: CELL TYPE ANNOTATION — SingleR
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Load reference datasets
+ref_blueprint <- celldex::BlueprintEncodeData()    # immune-focused
+ref_hpca      <- celldex::HumanPrimaryCellAtlasData() # broad coverage
+
+# Convert to SingleCellExperiment
+sce_lung <- as.SingleCellExperiment(lung)
+
+# Annotate with Blueprint/ENCODE
 singleR_bp <- SingleR(
   test            = sce_lung,
-  assay.type.test = "logcounts",
+  assay.type.test = 1,
   ref             = ref_blueprint,
   labels          = ref_blueprint$label.main
 )
 
-# Run SingleR with HPCA
+# Annotate with HPCA
 singleR_hpca <- SingleR(
   test            = sce_lung,
-  assay.type.test = "logcounts",
+  assay.type.test = 1,
   ref             = ref_hpca,
   labels          = ref_hpca$label.main
 )
 
-# Consensus: use Blueprint labels where available; fall back to HPCA
+# Consensus: Blueprint where confident, HPCA as fallback
 results_consensus <- ifelse(
   !is.na(singleR_bp$pruned.labels),
   singleR_bp$pruned.labels,
   singleR_hpca$pruned.labels
 )
 
-# Store annotations in Seurat metadata
-seurat_obj@meta.data$celltype_blueprint <- singleR_bp$pruned.labels
-seurat_obj@meta.data$celltype_hpca      <- singleR_hpca$pruned.labels
-seurat_obj@meta.data$celltype_consensus <- results_consensus
+# Add to metadata
+lung@meta.data$celltype_blueprint <- singleR_bp$pruned.labels
+lung@meta.data$celltype_hpca      <- singleR_hpca$pruned.labels
+lung@meta.data$celltype_consensus  <- results_consensus
 
-head(seurat_obj@meta.data[, c("celltype_blueprint", "celltype_hpca", "celltype_consensus")])
+cat("Cell type distribution (consensus):\n")
+print(table(lung@meta.data$celltype_consensus))
 
-# --- Annotation score heatmaps ---
-plotScoreHeatmap(singleR_bp,  main = "SingleR Scores — Blueprint/ENCODE")
-plotScoreHeatmap(singleR_hpca, main = "SingleR Scores — HPCA")
-
-# --- UMAP colored by annotation ---
-DimPlot(seurat_obj, reduction = "umap", group.by = "celltype_blueprint",
-        label = TRUE, repel = TRUE) +
-  ggtitle("Blueprint/ENCODE Annotation")
-
-DimPlot(seurat_obj, reduction = "umap", group.by = "celltype_hpca",
-        label = TRUE, repel = TRUE) +
-  ggtitle("HPCA Annotation")
-
-DimPlot(seurat_obj, reduction = "umap", group.by = "celltype_consensus",
-        label = TRUE, repel = TRUE) +
-  ggtitle("Consensus Cell Type Annotation — Lung Carcinoma DTC")
-
-# Cell type distribution
-table(seurat_obj@meta.data$celltype_consensus)
-11. AUCell: Gene Set Activity Scoring
-r# --- Define lung cancer–relevant gene sets ---
-markers.lung <- list(
-  Epithelial_Tumor = c("EPCAM", "KRT19", "KRT18", "KRT8", "CLDN4"),
-  EMT              = c("VIM", "CDH2", "FN1", "SNAI1", "TWIST1", "ZEB1"),
-  T_cells          = c("CD3D", "CD3E", "CD3G", "TRAC"),
-  CD8_Cytotoxic    = c("CD8A", "CD8B", "GZMB", "PRF1", "NKG7"),
-  CD4_Helper       = c("CD4", "IL7R", "CCR7", "LTB"),
-  NK_cells         = c("NKG7", "GNLY", "KLRD1", "NCR1"),
-  B_cells          = c("MS4A1", "CD79A", "CD74"),
-  Myeloid          = c("LYZ", "CD14", "S100A8", "S100A9", "CTSS"),
-  Fibroblast       = c("COL1A1", "COL3A1", "FAP", "ACTA2"),
-  Endothelial      = c("PECAM1", "VWF", "CDH5", "ENG")
+# Save annotation table
+write.csv(
+  as.data.frame(table(lung@meta.data$celltype_consensus)),
+  "output/tables/03_celltype_counts.csv",
+  row.names = FALSE
 )
+
+# UMAP by annotation
+p_annot <- DimPlot(lung, reduction = "umap",
+                    group.by = "celltype_consensus",
+                    label = TRUE, repel = TRUE, label.size = 3) +
+  ggtitle("Cell Type Annotation (SingleR Consensus)") +
+  theme(legend.text = element_text(size = 8))
+ggsave("output/figures/16_UMAP_SingleR_consensus.png",
+       p_annot, width = 12, height = 8, dpi = 300)
+
+# Score heatmaps
+png("output/figures/17_SingleR_scores_blueprint.png",
+    width = 2400, height = 1600, res = 200)
+plotScoreHeatmap(singleR_bp,
+                 main = "SingleR Annotation Scores — Blueprint/ENCODE")
+dev.off()
+
+png("output/figures/18_SingleR_scores_hpca.png",
+    width = 2400, height = 1600, res = 200)
+plotScoreHeatmap(singleR_hpca,
+                 main = "SingleR Annotation Scores — HPCA")
+dev.off()
+
+# Cluster × CellType composition table
+comp_table <- table(
+  Cluster  = Idents(lung),
+  CellType = lung$celltype_consensus
+)
+write.csv(as.data.frame.matrix(comp_table),
+          "output/tables/04_cluster_celltype_composition.csv")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SECTION 12: TUMOR vs TME CLASSIFICATION
+# ─────────────────────────────────────────────────────────────────────────────
+# Q1 answer: classify each cell as Tumor, Immune, or Stromal
+
+lung@meta.data$broad_class <- dplyr::case_when(
+  grepl("Epithelial|epithelial|Keratinocyte|keratinocyte",
+        lung$celltype_consensus, ignore.case = TRUE)           ~ "Tumor_Epithelial",
+  grepl("T_cell|T cell|NK|B_cell|B cell|Mono|DC|Myeloid|Neutro|Macro",
+        lung$celltype_consensus, ignore.case = TRUE)           ~ "Immune_TME",
+  grepl("Fibro|Endoth|Smooth|Pericyte|Stroma",
+        lung$celltype_consensus, ignore.case = TRUE)           ~ "Stromal_TME",
+  TRUE                                                          ~ "Unassigned"
+)
+
+# Manually refine based on EPCAM expression (more reliable than reference)
+# Cells with EPCAM SCT expression > 1 are very likely tumor epithelial
+epcam_expr <- FetchData(lung, vars = "EPCAM", assay = "SCT")
+lung@meta.data$broad_class[epcam_expr$EPCAM > 1] <- "Tumor_Epithelial"
+
+cat("\nBroad class distribution:\n")
+print(table(lung$broad_class))
+
+p_broad <- DimPlot(lung, reduction = "umap",
+                    group.by = "broad_class",
+                    cols = c("Tumor_Epithelial" = "#E41A1C",
+                             "Immune_TME"        = "#377EB8",
+                             "Stromal_TME"       = "#4DAF4A",
+                             "Unassigned"        = "#999999"),
+                    label = FALSE, pt.size = 0.6) +
+  ggtitle("Tumor vs Tumor Microenvironment (TME)") +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+ggsave("output/figures/19_UMAP_tumor_vs_TME.png",
+       p_broad, width = 10, height = 7, dpi = 300)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SECTION 13: EMT ANALYSIS
+# ─────────────────────────────────────────────────────────────────────────────
+# Q3: Which tumor cells are undergoing EMT / metastatic transition?
+# EMT = Epithelial-to-Mesenchymal Transition
+# Key for DTCs: cells that have undergone (partial) EMT gain migratory capacity
+# Spectrum: Epithelial ←→ Hybrid E/M ←→ Mesenchymal
+
+# Epithelial score genes
+emt_epithelial_genes <- c("EPCAM", "CDH1", "KRT19", "KRT18",
+                           "KRT8", "CLDN3", "CLDN4", "MUC1")
+
+# Mesenchymal score genes
+emt_mesenchymal_genes <- c("VIM", "CDH2", "FN1", "SNAI1", "SNAI2",
+                            "TWIST1", "ZEB1", "ZEB2", "FOXC2")
+
+# Filter to present genes
+emt_epi_present  <- intersect(emt_epithelial_genes,  rownames(lung))
+emt_mes_present  <- intersect(emt_mesenchymal_genes, rownames(lung))
+
+# Add module scores (Seurat scores each cell for the gene set)
+lung <- AddModuleScore(lung, features = list(emt_epi_present),
+                        name = "EMT_Epithelial_Score", assay = "SCT")
+lung <- AddModuleScore(lung, features = list(emt_mes_present),
+                        name = "EMT_Mesenchymal_Score", assay = "SCT")
+
+# Rename columns (AddModuleScore appends a 1)
+lung$EMT_Epithelial_Score  <- lung$EMT_Epithelial_Score1
+lung$EMT_Mesenchymal_Score <- lung$EMT_Mesenchymal_Score1
+
+# EMT index: positive = mesenchymal bias, negative = epithelial bias
+lung$EMT_Index <- lung$EMT_Mesenchymal_Score - lung$EMT_Epithelial_Score
+
+# Feature plots
+p_emt1 <- FeaturePlot(lung, features = "EMT_Epithelial_Score",
+                       reduction = "umap",
+                       cols = c("grey90", "steelblue"),
+                       min.cutoff = "q10") +
+  ggtitle("Epithelial Score")
+
+p_emt2 <- FeaturePlot(lung, features = "EMT_Mesenchymal_Score",
+                       reduction = "umap",
+                       cols = c("grey90", "firebrick"),
+                       min.cutoff = "q10") +
+  ggtitle("Mesenchymal Score")
+
+p_emt3 <- FeaturePlot(lung, features = "EMT_Index",
+                       reduction = "umap",
+                       cols = c("steelblue", "white", "firebrick")) +
+  ggtitle("EMT Index\n(blue=Epithelial, red=Mesenchymal)")
+
+ggsave("output/figures/20_EMT_scores_UMAP.png",
+       p_emt1 + p_emt2 + p_emt3, width = 18, height = 5, dpi = 300)
+
+# EMT scatter: each dot = one cell
+p_emt_scatter <- ggplot(lung@meta.data,
+                          aes(x = EMT_Epithelial_Score,
+                              y = EMT_Mesenchymal_Score,
+                              color = broad_class)) +
+  geom_point(size = 0.5, alpha = 0.7) +
+  scale_color_manual(values = c("Tumor_Epithelial" = "#E41A1C",
+                                 "Immune_TME"        = "#377EB8",
+                                 "Stromal_TME"       = "#4DAF4A",
+                                 "Unassigned"        = "#999999")) +
+  theme_cowplot() +
+  labs(title = "EMT Continuum: Epithelial vs Mesenchymal Score",
+       x = "Epithelial Program Score",
+       y = "Mesenchymal Program Score",
+       color = "Cell Class") +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+ggsave("output/figures/21_EMT_scatter.png",
+       p_emt_scatter, width = 9, height = 7, dpi = 300)
+
+# Violin: EMT index by cluster
+p_emt_vln <- VlnPlot(lung, features = "EMT_Index",
+                      pt.size = 0, group.by = "seurat_clusters") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  ggtitle("EMT Index per Cluster\n(above 0 = mesenchymal bias)")
+ggsave("output/figures/22_EMT_index_violin.png",
+       p_emt_vln, width = 12, height = 5, dpi = 300)
+
+# Key EMT genes on UMAP
+emt_plot_genes <- c("EPCAM", "CDH1", "VIM", "CDH2",
+                     "ZEB1", "SNAI1", "FN1", "TWIST1")
+emt_plot_genes <- intersect(emt_plot_genes, rownames(lung))
+
+p_emt_feat <- FeaturePlot(lung, features = emt_plot_genes,
+                           reduction = "umap", ncol = 4,
+                           min.cutoff = "q10", max.cutoff = "q90")
+ggsave("output/figures/23_EMT_genes_featureplot.png",
+       p_emt_feat, width = 20, height = 10, dpi = 300)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SECTION 14: PROLIFERATION ANALYSIS
+# ─────────────────────────────────────────────────────────────────────────────
+# Q4: Are there actively proliferating tumor subpopulations?
+# Proliferating cells express S-phase and G2/M-phase markers
+# Important for identifying aggressive tumor clones
+
+# Cell cycle scoring using Seurat's built-in gene sets
+s.genes   <- cc.genes$s.genes    # S-phase markers
+g2m.genes <- cc.genes$g2m.genes  # G2/M-phase markers
+
+lung <- CellCycleScoring(
+  lung,
+  s.features   = s.genes,
+  g2m.features = g2m.genes,
+  set.ident    = FALSE
+)
+
+cat("Cell cycle phase distribution:\n")
+print(table(lung$Phase))
+
+# UMAP by cell cycle phase
+p_cc <- DimPlot(lung, reduction = "umap",
+                  group.by = "Phase",
+                  cols = c("G1" = "#4DAF4A", "S" = "#FF7F00", "G2M" = "#E41A1C"),
+                  pt.size = 0.5) +
+  ggtitle("Cell Cycle Phase")
+ggsave("output/figures/24_UMAP_cell_cycle.png",
+       p_cc, width = 9, height = 7, dpi = 300)
+
+# S-score vs G2M-score scatter
+p_cc_scatter <- ggplot(lung@meta.data,
+                         aes(x = S.Score, y = G2M.Score,
+                             color = Phase)) +
+  geom_point(size = 0.6, alpha = 0.7) +
+  scale_color_manual(values = c("G1" = "#4DAF4A",
+                                 "S" = "#FF7F00",
+                                 "G2M" = "#E41A1C")) +
+  theme_cowplot() +
+  labs(title = "Cell Cycle Score: S vs G2M",
+       x = "S Phase Score", y = "G2M Phase Score") +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+ggsave("output/figures/25_cell_cycle_scatter.png",
+       p_cc_scatter, width = 8, height = 6, dpi = 300)
+
+# Proliferation markers
+prolif_genes <- c("MKI67", "TOP2A", "PCNA", "MCM2",
+                   "CCNB1", "CDK1", "CENPF", "UBE2C")
+prolif_genes <- intersect(prolif_genes, rownames(lung))
+
+p_prolif <- FeaturePlot(lung, features = prolif_genes,
+                         reduction = "umap", ncol = 4,
+                         min.cutoff = "q10")
+ggsave("output/figures/26_proliferation_markers.png",
+       p_prolif, width = 20, height = 10, dpi = 300)
+
+# Fraction of proliferating cells per cluster
+prolif_table <- lung@meta.data %>%
+  group_by(seurat_clusters) %>%
+  summarise(
+    n_cells        = n(),
+    n_prolif       = sum(Phase %in% c("S", "G2M")),
+    pct_prolif     = round(100 * n_prolif / n_cells, 1)
+  )
+write.csv(prolif_table, "output/tables/05_proliferation_per_cluster.csv",
+          row.names = FALSE)
+
+cat("Proliferation per cluster:\n")
+print(prolif_table)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SECTION 15: IMMUNE CONTEXTURE ANALYSIS
+# ─────────────────────────────────────────────────────────────────────────────
+# Q5: What is the immune landscape of this DTC sample?
+
+# ── Subset immune cells ────────────────────────────────────────────────────────
+immune_idents <- grep(
+  "T_cell|T cell|NK|B_cell|B cell|Mono|DC|Myeloid|Neutro|Macro|Plasma",
+  levels(factor(lung$celltype_consensus)),
+  value = TRUE, ignore.case = TRUE
+)
+
+if (length(immune_idents) > 0) {
+  immune <- subset(lung, subset = celltype_consensus %in% immune_idents)
+  cat(sprintf("Immune cells: %d\n", ncol(immune)))
+
+  # Re-cluster immune compartment
+  DefaultAssay(immune) <- "RNA"
+  immune <- SCTransform(immune, vars.to.regress = "percent.mt",
+                         verbose = FALSE)
+  immune <- RunPCA(immune)
+  immune <- FindNeighbors(immune, dims = 1:15)
+  immune <- FindClusters(immune,  resolution = 0.5)
+  immune <- RunUMAP(immune, dims = 1:15)
+
+  p_immune <- DimPlot(immune, reduction = "umap",
+                       group.by = "celltype_consensus",
+                       label = TRUE, repel = TRUE) +
+    ggtitle("Immune Cell Subclusters")
+  ggsave("output/figures/27_immune_UMAP.png",
+         p_immune, width = 11, height = 7, dpi = 300)
+
+  # Immune subtype markers
+  immune_markers_plot <- c(
+    "CD3D", "CD8A", "CD4", "FOXP3",   # T cell subtypes
+    "NKG7", "GNLY",                    # NK
+    "MS4A1", "CD79A",                  # B cells
+    "LYZ", "CD163", "CD14"            # Myeloid
+  )
+  immune_markers_plot <- intersect(immune_markers_plot, rownames(immune))
+
+  p_immune_feat <- FeaturePlot(immune, features = immune_markers_plot,
+                                reduction = "umap", ncol = 4,
+                                min.cutoff = "q10")
+  ggsave("output/figures/28_immune_markers_featureplot.png",
+         p_immune_feat, width = 20, height = 10, dpi = 300)
+}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SECTION 16: IMMUNOTHERAPY TARGET ANALYSIS
+# ─────────────────────────────────────────────────────────────────────────────
+# Q6: Are checkpoint / immunotherapy target genes expressed?
+# Critical for predicting response to PD-1/PD-L1 blockade (pembrolizumab,
+# nivolumab, atezolizumab) — standard of care in lung squamous cell carcinoma
+
+panel_checkpoint <- list(
+
+  # Inhibitory receptors on T cells (exhaustion markers)
+  "T cell exhaustion" = c("PDCD1",    # PD-1  → target of pembrolizumab/nivolumab
+                           "HAVCR2",   # TIM-3 → target of cobolimab
+                           "TIGIT",    # TIGIT → target of tiragolumab
+                           "LAG3",     # LAG-3 → target of relatlimab
+                           "CTLA4",    # CTLA-4 → target of ipilimumab
+                           "TOX",      # master transcription factor of exhaustion
+                           "ENTPD1",   # CD39 — exhaustion marker
+                           "BATF"),    # drives exhaustion TF program
+
+  # Ligands expressed by tumor / myeloid (target of atezolizumab/durvalumab)
+  "Checkpoint ligands" = c("CD274",     # PD-L1
+                            "PDCD1LG2", # PD-L2
+                            "CD80",     # B7-1 (CTLA-4 ligand)
+                            "CD86",     # B7-2
+                            "LGALS9",   # Galectin-9 (TIM-3 ligand)
+                            "NECTIN2",  # CD112 (TIGIT ligand)
+                            "CD155"),   # PVR (TIGIT ligand)
+
+  # Effector cytotoxic markers (good response indicator)
+  "Cytotoxic effectors" = c("GZMB",  "GZMK", "PRF1",
+                             "IFNG",  "TNF",  "NKG7"),
+
+  # Regulatory T cell markers (immunosuppression)
+  "Treg / immunosuppression" = c("FOXP3", "IL2RA", "IKZF2",
+                                  "IL10",  "TGFB1", "CTLA4")
+)
+
+# Filter to present genes
+panel_checkpoint_present <- lapply(panel_checkpoint, function(genes) {
+  intersect(genes, rownames(lung))
+})
+panel_checkpoint_present <- Filter(function(x) length(x) > 0,
+                                    panel_checkpoint_present)
+
+# Dot plot across clusters
+p_checkpoint_dot <- DotPlot(lung, features = panel_checkpoint_present,
+                              assay = "SCT") +
+  RotatedAxis() +
+  scale_color_gradient2(low = "blue", mid = "white", high = "red") +
+  ggtitle("Immunotherapy Target Genes — Expression Across Clusters")
+ggsave("output/figures/29_checkpoint_dotplot.png",
+       p_checkpoint_dot, width = 22, height = 7, dpi = 300)
+
+# UMAP feature plots — key checkpoint genes
+key_checkpoint <- c("PDCD1", "CD274", "HAVCR2", "TIGIT",
+                     "LAG3",  "CTLA4", "GZMB",   "FOXP3")
+key_checkpoint <- intersect(key_checkpoint, rownames(lung))
+
+p_checkpoint_feat <- FeaturePlot(lung, features = key_checkpoint,
+                                  reduction = "umap", ncol = 4,
+                                  min.cutoff = "q10", max.cutoff = "q90")
+ggsave("output/figures/30_checkpoint_featureplot.png",
+       p_checkpoint_feat, width = 20, height = 10, dpi = 300)
+
+# Dot plot by cell type annotation
+p_checkpoint_celltype <- DotPlot(lung,
+                                   features = panel_checkpoint_present,
+                                   group.by = "celltype_consensus",
+                                   assay = "SCT") +
+  RotatedAxis() +
+  scale_color_gradient2(low = "blue", mid = "white", high = "red") +
+  ggtitle("Checkpoint Genes by Cell Type")
+ggsave("output/figures/31_checkpoint_by_celltype.png",
+       p_checkpoint_celltype, width = 22, height = 8, dpi = 300)
+
+# PD-L1 (CD274) expression specifically — key biomarker for ICI therapy
+pdl1_expr <- FetchData(lung, vars = "CD274", assay = "SCT")
+lung$PDL1_high <- pdl1_expr$CD274 > quantile(pdl1_expr$CD274, 0.75)
+
+cat(sprintf("PD-L1 high cells: %d (%.1f%%)\n",
+            sum(lung$PDL1_high),
+            100 * mean(lung$PDL1_high)))
+
+p_pdl1 <- FeaturePlot(lung, features = "CD274",
+                        reduction = "umap",
+                        cols = c("grey90", "darkred"),
+                        min.cutoff = "q10") +
+  ggtitle("PD-L1 (CD274) Expression\nKey immunotherapy biomarker")
+ggsave("output/figures/32_PDL1_featureplot.png",
+       p_pdl1, width = 8, height = 7, dpi = 300)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SECTION 17: TUMOR SUBCLONE ANALYSIS
+# ─────────────────────────────────────────────────────────────────────────────
+# Q2: Is there intra-tumor heterogeneity?
+# Subset tumor epithelial cells and re-cluster to find subclones
+
+tumor_cells <- subset(lung, subset = broad_class == "Tumor_Epithelial")
+cat(sprintf("Tumor epithelial cells: %d\n", ncol(tumor_cells)))
+
+if (ncol(tumor_cells) >= 50) {
+
+  DefaultAssay(tumor_cells) <- "RNA"
+  tumor_cells <- SCTransform(tumor_cells,
+                              vars.to.regress = "percent.mt",
+                              verbose = FALSE)
+  tumor_cells <- RunPCA(tumor_cells)
+  tumor_cells <- FindNeighbors(tumor_cells, dims = 1:15)
+  tumor_cells <- FindClusters(tumor_cells,  resolution = 0.4)
+  tumor_cells <- RunUMAP(tumor_cells, dims = 1:15)
+
+  # Carry over cell cycle phase
+  tumor_cells$Phase <- lung$Phase[colnames(tumor_cells)]
+
+  p_tumor <- DimPlot(tumor_cells, reduction = "umap",
+                      label = TRUE, repel = TRUE) +
+    ggtitle("Tumor Subclone Clusters")
+  p_tumor_cc <- DimPlot(tumor_cells, reduction = "umap",
+                          group.by = "Phase",
+                          cols = c("G1" = "#4DAF4A",
+                                   "S"  = "#FF7F00",
+                                   "G2M" = "#E41A1C")) +
+    ggtitle("Cell Cycle within Tumor")
+
+  ggsave("output/figures/33_tumor_subclones_UMAP.png",
+         p_tumor + p_tumor_cc, width = 18, height = 7, dpi = 300)
+
+  # EMT within tumor subclones
+  p_tumor_emt <- FeaturePlot(tumor_cells, features = "EMT_Index",
+                               reduction = "umap",
+                               cols = c("steelblue", "white", "firebrick")) +
+    ggtitle("EMT Index within Tumor Subclones")
+  ggsave("output/figures/34_tumor_EMT_index.png",
+         p_tumor_emt, width = 8, height = 7, dpi = 300)
+
+  # Markers per tumor subclone
+  tumor.markers <- FindAllMarkers(
+    tumor_cells, only.pos = TRUE,
+    min.pct = 0.25, logfc.threshold = 0.25, assay = "SCT"
+  )
+  write.csv(tumor.markers,
+            "output/tables/06_tumor_subclone_markers.csv",
+            row.names = TRUE)
+
+  # Heatmap
+  top5_tumor <- tumor.markers %>%
+    group_by(cluster) %>%
+    slice_max(avg_log2FC, n = 5) %>%
+    ungroup()
+  p_tumor_heat <- DoHeatmap(tumor_cells,
+                             features = top5_tumor$gene,
+                             assay = "SCT") + NoLegend() +
+    ggtitle("Top 5 Marker Genes — Tumor Subclones")
+  ggsave("output/figures/35_tumor_subclone_heatmap.png",
+         p_tumor_heat, width = 12, height = 8, dpi = 300)
+
+} else {
+  cat("Too few tumor cells for sub-clustering — check annotation.\n")
+}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SECTION 18: AUCell GENE SET SCORING
+# ─────────────────────────────────────────────────────────────────────────────
+# Score each individual cell for activity of biologically relevant programs
+
+library(AUCell)
+library(GSEABase)
+
+sce_auc <- as.SingleCellExperiment(lung)
+exprMat  <- logcounts(sce_auc)
+
+# Define gene sets — all biologically motivated for SCC DTC
+gene_sets_lung <- list(
+
+  # Tumor identity
+  SCC_Tumor         = intersect(c("EPCAM","KRT19","KRT18","KRT5","KRT14",
+                                   "TP63","SOX2","FGFR1","EGFR"), rownames(lung)),
+  # Plasticity
+  EMT               = intersect(c("VIM","CDH2","FN1","SNAI1","SNAI2",
+                                   "TWIST1","ZEB1","ZEB2"), rownames(lung)),
+  # Proliferation
+  Proliferation     = intersect(c("MKI67","TOP2A","PCNA","MCM2",
+                                   "CCNB1","CDK1","CENPF","UBE2C"), rownames(lung)),
+  # Hypoxia / stress
+  Hypoxia           = intersect(c("HIF1A","VEGFA","CA9","LDHA",
+                                   "SLC2A1","BNIP3","PGK1"), rownames(lung)),
+  # Immune escape
+  Immune_Evasion    = intersect(c("CD274","PDCD1LG2","LGALS9",
+                                   "IDO1","TGFB1","IL10"), rownames(lung)),
+  # Cytotoxic T cells
+  Cytotoxic_T       = intersect(c("CD8A","CD8B","GZMB","PRF1",
+                                   "NKG7","IFNG","GZMK"), rownames(lung)),
+  # T cell exhaustion
+  T_Exhaustion      = intersect(c("PDCD1","HAVCR2","TIGIT","LAG3",
+                                   "TOX","CTLA4","ENTPD1"), rownames(lung)),
+  # M2 macrophage immunosuppression
+  M2_Macro          = intersect(c("CD163","MRC1","IL10","CCL18",
+                                   "TGFB1","ARG1","VSIG4"), rownames(lung)),
+  # Cancer-associated fibroblasts
+  CAF               = intersect(c("COL1A1","COL3A1","FAP","ACTA2",
+                                   "PDGFRA","THY1","POSTN"), rownames(lung)),
+  # Angiogenesis
+  Angiogenesis      = intersect(c("VEGFA","ANGPT2","PECAM1","VWF",
+                                   "CDH5","FLT1","KDR"), rownames(lung))
+)
+
+# Remove empty gene sets
+gene_sets_lung <- Filter(function(x) length(x) >= 3, gene_sets_lung)
 
 # Build GeneSetCollection
 all_sets <- GeneSetCollection(
-  lapply(names(markers.lung), function(x) {
-    GeneSet(markers.lung[[x]], setName = x)
+  lapply(names(gene_sets_lung), function(x) {
+    GeneSet(gene_sets_lung[[x]], setName = x)
   })
 )
 
-# Extract log-normalised expression matrix from SCT assay
-sce_auc <- as.SingleCellExperiment(seurat_obj)
-exprMat  <- logcounts(sce_auc)
-
-# Build gene rankings
+# Build rankings
 rankings <- AUCell_buildRankings(exprMat, plotStats = FALSE, verbose = FALSE)
 
-# Calculate AUC scores
+# Calculate AUC
 cell.aucs <- AUCell_calcAUC(all_sets, rankings)
+auc_mat   <- t(getAUC(cell.aucs))
 
-# Extract AUC matrix and assign dominant label per cell
-auc.mat <- t(getAUC(cell.aucs))
-seurat_obj$AUCell_label <- colnames(auc.mat)[max.col(auc.mat)]
+# Add AUC scores to metadata
+for (gs in colnames(auc_mat)) {
+  lung@meta.data[[paste0("AUC_", gs)]] <- auc_mat[, gs]
+}
 
-table(seurat_obj$AUCell_label)
+# Assign dominant program per cell
+lung$AUCell_dominant <- colnames(auc_mat)[apply(auc_mat, 1, which.max)]
 
-# UMAP colored by AUCell label
-DimPlot(seurat_obj, group.by = "AUCell_label", label = TRUE, repel = TRUE) +
-  ggtitle("AUCell Gene Set Activity — Lung Carcinoma DTC")
+cat("AUCell dominant program distribution:\n")
+print(table(lung$AUCell_dominant))
 
-# Threshold distributions (check bimodality)
-AUCell_exploreThresholds(cell.aucs, plotHist = TRUE, assign = TRUE)
+# UMAP by dominant AUCell program
+p_aucell <- DimPlot(lung, reduction = "umap",
+                     group.by = "AUCell_dominant",
+                     label = TRUE, repel = TRUE) +
+  ggtitle("Dominant Gene Program (AUCell)")
+ggsave("output/figures/36_UMAP_AUCell_dominant.png",
+       p_aucell, width = 11, height = 7, dpi = 300)
 
-# Add individual AUC scores as metadata for FeaturePlot
-seurat_obj <- AddMetaData(seurat_obj, as.data.frame(auc.mat))
+# Feature plots for each AUC score
+auc_feature_plots <- lapply(names(gene_sets_lung), function(gs) {
+  col <- paste0("AUC_", gs)
+  FeaturePlot(lung, features = col, reduction = "umap",
+              min.cutoff = "q10", max.cutoff = "q90") +
+    ggtitle(gs) +
+    scale_color_gradientn(colours = c("grey90", "orange", "red"))
+})
 
-FeaturePlot(
-  seurat_obj,
-  features  = c("Epithelial_Tumor", "EMT", "T_cells", "Myeloid"),
-  reduction = "umap",
-  ncol      = 2,
-  min.cutoff = "q10",
-  max.cutoff = "q90"
-) + ggtitle("AUCell Scores — Key Cell Programs")
-12. MSigDB Hallmark Pathway Scoring
-r# Download Hallmark gene sets (H collection)
+ggsave("output/figures/37_AUCell_all_programs.png",
+       wrap_plots(auc_feature_plots, ncol = 4),
+       width = 24, height = 16, dpi = 300)
+
+# Heatmap: AUC scores by cluster
+auc_df <- as.data.frame(auc_mat)
+auc_df$cluster <- Idents(lung)
+auc_cluster_mean <- auc_df %>%
+  group_by(cluster) %>%
+  summarise(across(everything(), mean)) %>%
+  tibble::column_to_rownames("cluster")
+
+png("output/figures/38_AUCell_cluster_heatmap.png",
+    width = 2200, height = 1600, res = 200)
+pheatmap(
+  t(auc_cluster_mean),
+  color          = viridis(100),
+  cluster_rows   = TRUE,
+  cluster_cols   = TRUE,
+  main           = "Mean AUCell Score per Cluster",
+  fontsize_row   = 10,
+  fontsize_col   = 10
+)
+dev.off()
+
+# Violin: key programs by cell class
+p_auc_vln <- VlnPlot(
+  lung,
+  features  = c("AUC_SCC_Tumor", "AUC_EMT",
+                 "AUC_T_Exhaustion", "AUC_Hypoxia"),
+  group.by  = "broad_class",
+  pt.size   = 0, ncol = 2
+)
+ggsave("output/figures/39_AUCell_violin_by_class.png",
+       p_auc_vln, width = 14, height = 10, dpi = 300)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SECTION 19: HALLMARK PATHWAY SCORING
+# ─────────────────────────────────────────────────────────────────────────────
+# Q7: Which cancer hallmark pathways are active per cell type?
+
 hallmark <- msigdbr(species = "Homo sapiens", category = "H")
 hallmark_list <- split(hallmark$gene_symbol, hallmark$gs_name)
 
 hallmark_gs <- GeneSetCollection(
   lapply(names(hallmark_list), function(x) {
-    GeneSet(unique(hallmark_list[[x]]), setName = x)
+    GeneSet(unique(intersect(hallmark_list[[x]], rownames(lung))),
+            setName = x)
   })
 )
+# Remove empty
+hallmark_gs <- hallmark_gs[
+  sapply(hallmark_gs, function(gs) length(geneIds(gs)) >= 5)
+]
 
-cat("Number of Hallmark pathways:", length(hallmark_gs), "\n")
+cat(sprintf("Hallmark gene sets (non-empty): %d\n", length(hallmark_gs)))
 
-# Re-use rankings from Section 11 (or rebuild if needed)
 hallmark.aucs   <- AUCell_calcAUC(hallmark_gs, rankings)
-hallmark.mat    <- t(assay(hallmark.aucs))
+hallmark.mat    <- t(getAUC(hallmark.aucs))
 
-# Add Hallmark AUC scores to Seurat metadata
-seurat_obj <- AddMetaData(seurat_obj, as.data.frame(hallmark.mat))
-
-# --- Feature plots: cancer-relevant Hallmark pathways ---
-p_ifn  <- FeaturePlot(seurat_obj, features = "HALLMARK_INTERFERON_GAMMA_RESPONSE",
-                      cols = c("grey90", "darkred"),   min.cutoff = "q10", max.cutoff = "q90") +
-           ggtitle("IFN-γ Response")
-
-p_hyp  <- FeaturePlot(seurat_obj, features = "HALLMARK_HYPOXIA",
-                      cols = c("grey90", "darkorange"), min.cutoff = "q10", max.cutoff = "q90") +
-           ggtitle("Hypoxia")
-
-p_emts <- FeaturePlot(seurat_obj, features = "HALLMARK_EPITHELIAL_MESENCHYMAL_TRANSITION",
-                      cols = c("grey90", "steelblue"),  min.cutoff = "q10", max.cutoff = "q90") +
-           ggtitle("EMT (Hallmark)")
-
-p_myc  <- FeaturePlot(seurat_obj, features = "HALLMARK_MYC_TARGETS_V1",
-                      cols = c("grey90", "purple"),     min.cutoff = "q10", max.cutoff = "q90") +
-           ggtitle("MYC Targets V1")
-
-p_tnf  <- FeaturePlot(seurat_obj, features = "HALLMARK_TNFA_SIGNALING_VIA_NFKB",
-                      cols = c("grey90", "forestgreen"), min.cutoff = "q10", max.cutoff = "q90") +
-           ggtitle("TNFα–NFκB")
-
-p_pro  <- FeaturePlot(seurat_obj, features = "HALLMARK_G2M_CHECKPOINT",
-                      cols = c("grey90", "firebrick"),  min.cutoff = "q10", max.cutoff = "q90") +
-           ggtitle("G2M Checkpoint (Proliferation)")
-
-(p_ifn | p_hyp | p_emts) / (p_myc | p_tnf | p_pro)
-
-# Violin plots: pathway activity per cell type
-VlnPlot(
-  seurat_obj,
-  features  = c(
-    "HALLMARK_EPITHELIAL_MESENCHYMAL_TRANSITION",
-    "HALLMARK_HYPOXIA",
-    "HALLMARK_INTERFERON_GAMMA_RESPONSE"
-  ),
-  group.by  = "celltype_consensus",
-  pt.size   = 0,
-  ncol      = 1
+# Add selected cancer pathways to metadata
+cancer_hallmarks <- c(
+  "HALLMARK_EPITHELIAL_MESENCHYMAL_TRANSITION",
+  "HALLMARK_HYPOXIA",
+  "HALLMARK_INTERFERON_GAMMA_RESPONSE",
+  "HALLMARK_MYC_TARGETS_V1",
+  "HALLMARK_G2M_CHECKPOINT",
+  "HALLMARK_TNFA_SIGNALING_VIA_NFKB",
+  "HALLMARK_IL6_JAK_STAT3_SIGNALING",
+  "HALLMARK_INFLAMMATORY_RESPONSE",
+  "HALLMARK_OXIDATIVE_PHOSPHORYLATION",
+  "HALLMARK_PI3K_AKT_MTOR_SIGNALING",
+  "HALLMARK_UNFOLDED_PROTEIN_RESPONSE",
+  "HALLMARK_APOPTOSIS"
 )
-13. Subset Analysis — Tumor Epithelial & EMT Cells
-r# Set identity to consensus annotation
-seurat_obj <- SetIdent(seurat_obj, value = "celltype_consensus")
-levels(seurat_obj)
 
-# Subset: epithelial / carcinoma-like cells (adjust names to match your annotation output)
-epithelial_ids <- grep("Epithelial|epithelial|Keratinocyte|keratinocyte",
-                        levels(seurat_obj), value = TRUE)
+cancer_hallmarks <- intersect(cancer_hallmarks, colnames(hallmark.mat))
+lung <- AddMetaData(lung, as.data.frame(hallmark.mat[, cancer_hallmarks]))
 
-if (length(epithelial_ids) > 0) {
-  epi_sub <- subset(seurat_obj, idents = epithelial_ids)
+# UMAP grid for cancer hallmarks
+hallmark_plots <- lapply(cancer_hallmarks, function(pw) {
+  FeaturePlot(lung, features = pw, reduction = "umap",
+              min.cutoff = "q10", max.cutoff = "q90") +
+    ggtitle(gsub("HALLMARK_", "", pw) %>% gsub("_", " ", .)) +
+    scale_color_gradientn(colours = c("grey90", "orange", "darkred")) +
+    theme(legend.position = "none",
+          plot.title = element_text(size = 8, face = "bold"))
+})
 
-  DefaultAssay(epi_sub) <- "RNA"
-  epi_sub <- SCTransform(epi_sub, vars.to.regress = "percent.mt", verbose = FALSE)
-  epi_sub <- RunPCA(epi_sub)
-  epi_sub <- FindNeighbors(epi_sub, dims = 1:15)
-  epi_sub <- FindClusters(epi_sub, resolution = 0.4)
-  epi_sub <- RunUMAP(epi_sub, dims = 1:15)
+ggsave("output/figures/40_hallmark_UMAP_grid.png",
+       wrap_plots(hallmark_plots, ncol = 4),
+       width = 24, height = 14, dpi = 300)
 
-  DimPlot(epi_sub, label = TRUE) + ggtitle("Epithelial/Tumor Subclusters")
+# Violin: hallmark activity per cell type
+p_hw_vln <- VlnPlot(
+  lung,
+  features  = cancer_hallmarks[1:6],
+  group.by  = "broad_class",
+  pt.size   = 0, ncol = 2
+)
+ggsave("output/figures/41_hallmark_violin.png",
+       p_hw_vln, width = 16, height = 18, dpi = 300)
 
-  epi.markers <- FindAllMarkers(epi_sub, only.pos = TRUE,
-                                min.pct = 0.25, logfc.threshold = 0.25, assay = "SCT")
+# Heatmap: mean hallmark AUC per cluster
+hallmark_auc_df <- as.data.frame(hallmark.mat[, cancer_hallmarks])
+hallmark_auc_df$cluster <- Idents(lung)
+hallmark_cluster_mean <- hallmark_auc_df %>%
+  group_by(cluster) %>%
+  summarise(across(everything(), mean)) %>%
+  tibble::column_to_rownames("cluster")
+colnames(hallmark_cluster_mean) <-
+  gsub("HALLMARK_", "", colnames(hallmark_cluster_mean))
 
-  epi_top5 <- epi.markers %>% group_by(cluster) %>% slice_max(avg_log2FC, n = 5)
-  write.csv(epi.markers, "output/epithelial_markers.csv", row.names = FALSE)
+png("output/figures/42_hallmark_cluster_heatmap.png",
+    width = 2400, height = 1600, res = 200)
+pheatmap(
+  t(hallmark_cluster_mean),
+  color        = viridis(100),
+  cluster_rows = TRUE,
+  cluster_cols = TRUE,
+  main         = "Hallmark Pathway Activity per Cluster",
+  fontsize_row = 9,
+  fontsize_col = 10,
+  angle_col    = 45
+)
+dev.off()
 
-  DoHeatmap(epi_sub, features = epi_top5$gene, assay = "SCT") +
-    NoLegend() + ggtitle("Top Markers — Epithelial Subclusters")
-} else {
-  message("No epithelial clusters found with current annotation — adjust `epithelial_ids` grep pattern.")
-}
-14. Save Results
-r# Create output directory if not present
-dir.create("output", showWarnings = FALSE)
-dir.create("output/images", showWarnings = FALSE)
 
-# Save final Seurat object
-saveRDS(seurat_obj, file = "output/lung_dtc_final.rds")
+# ─────────────────────────────────────────────────────────────────────────────
+# SECTION 20: STROMAL ANALYSIS
+# ─────────────────────────────────────────────────────────────────────────────
+# Q8: What stromal populations support the tumor?
 
-# Final UMAP — publication-quality
-final_umap <- DimPlot(
-  seurat_obj,
-  reduction = "umap",
-  group.by  = "celltype_consensus",
-  label     = TRUE,
-  repel     = TRUE,
-  label.size = 4,
-  pt.size   = 0.5
-) +
-  xlab("UMAP 1") + ylab("UMAP 2") +
-  ggtitle("3k Human Lung Carcinoma DTCs — Cell Type Annotation") +
-  theme(
-    axis.title      = element_text(size = 14),
-    legend.text     = element_text(size = 10),
-    plot.title      = element_text(size = 16, face = "bold")
-  ) +
-  guides(colour = guide_legend(override.aes = list(size = 6)))
+stromal_markers <- list(
+  "Cancer-associated Fibroblasts (CAF)" = c(
+    "FAP", "ACTA2", "COL1A1", "COL1A2", "COL3A1",
+    "PDGFRA", "THY1", "POSTN", "LRRC32"
+  ),
+  "Myofibroblasts" = c(
+    "ACTA2", "CNN1", "TAGLN", "MYH11"
+  ),
+  "Endothelial" = c(
+    "PECAM1", "VWF", "CDH5", "ENG",
+    "CLDN5", "ESAM", "MCAM"
+  ),
+  "Pericytes" = c(
+    "RGS5", "PDGFRB", "NOTCH3", "ABCC9"
+  )
+)
 
-ggsave("output/images/lung_dtc_umap_final.png",
-       plot = final_umap, width = 12, height = 8, dpi = 300)
+stromal_present <- lapply(stromal_markers, function(genes) {
+  intersect(genes, rownames(lung))
+})
+stromal_present <- Filter(function(x) length(x) > 0, stromal_present)
 
-# Cluster composition table
-cluster_summary <- as.data.frame(table(
-  Cluster   = Idents(seurat_obj),
-  CellType  = seurat_obj$celltype_consensus
-))
-write.csv(cluster_summary, "output/cluster_celltype_composition.csv", row.names = FALSE)
+p_stromal_dot <- DotPlot(lung, features = stromal_present, assay = "SCT") +
+  RotatedAxis() +
+  scale_color_gradient2(low = "blue", mid = "white", high = "red") +
+  ggtitle("Stromal Cell Marker Panel")
+ggsave("output/figures/43_stromal_dotplot.png",
+       p_stromal_dot, width = 18, height = 7, dpi = 300)
 
-cat("Analysis complete. Files saved to output/\n")
+# Angiogenesis markers
+angio_genes <- intersect(
+  c("VEGFA", "ANGPT2", "FLT1", "KDR", "TEK", "PDGFB"),
+  rownames(lung)
+)
+p_angio <- FeaturePlot(lung, features = angio_genes,
+                        reduction = "umap", ncol = 3,
+                        min.cutoff = "q10")
+ggsave("output/figures/44_angiogenesis_markers.png",
+       p_angio, width = 18, height = 10, dpi = 300)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SECTION 21: SQUAMOUS CELL CARCINOMA SPECIFIC MARKERS
+# ─────────────────────────────────────────────────────────────────────────────
+# Genes specifically relevant to lung SQUAMOUS cell carcinoma
+# (distinct from adenocarcinoma, which has different drivers)
+
+scc_specific <- c(
+  # SCC lineage transcription factors
+  "TP63", "SOX2",
+  # SCC surface / differentiation markers
+  "KRT5", "KRT14", "KRT6A", "DSC3", "S100A2",
+  # Key oncogenes / amplified in lung SCC
+  "FGFR1", "SOX2", "PIK3CA", "EGFR",
+  # Tumor suppressor loss
+  "CDKN2A",  # p16 — frequently lost in SCC
+  # DTC / metastasis
+  "MMP1", "MMP3", "MMP9", "MMP13",   # matrix metalloproteinases
+  "SERPINE1",                          # PAI-1, invasion marker
+  "S100A4"                             # metastasis promoter
+)
+scc_specific <- intersect(scc_specific, rownames(lung))
+
+p_scc <- FeaturePlot(lung, features = scc_specific,
+                      reduction = "umap", ncol = 4,
+                      min.cutoff = "q10", max.cutoff = "q90")
+ggsave("output/figures/45_SCC_specific_markers.png",
+       p_scc, width = 20, height = 14, dpi = 300)
+
+p_scc_dot <- DotPlot(lung, features = scc_specific, assay = "SCT") +
+  RotatedAxis() +
+  ggtitle("Squamous Cell Carcinoma Specific Markers")
+ggsave("output/figures/46_SCC_markers_dotplot.png",
+       p_scc_dot, width = 14, height = 6, dpi = 300)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SECTION 22: FINAL SUMMARY FIGURES
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Publication-ready UMAP panel
+p_final1 <- DimPlot(lung, reduction = "umap",
+                     group.by = "seurat_clusters",
+                     label = TRUE, repel = TRUE, label.size = 4,
+                     pt.size = 0.4) +
+  ggtitle("A. Leiden Clusters") +
+  theme(plot.title = element_text(face = "bold"))
+
+p_final2 <- DimPlot(lung, reduction = "umap",
+                     group.by = "celltype_consensus",
+                     label = TRUE, repel = TRUE, label.size = 3,
+                     pt.size = 0.4) +
+  ggtitle("B. Cell Type Annotation") +
+  theme(plot.title = element_text(face = "bold"),
+        legend.text = element_text(size = 7))
+
+p_final3 <- DimPlot(lung, reduction = "umap",
+                     group.by = "broad_class",
+                     cols = c("Tumor_Epithelial" = "#E41A1C",
+                              "Immune_TME"        = "#377EB8",
+                              "Stromal_TME"       = "#4DAF4A",
+                              "Unassigned"        = "#BBBBBB"),
+                     pt.size = 0.4) +
+  ggtitle("C. Tumor vs TME") +
+  theme(plot.title = element_text(face = "bold"))
+
+p_final4 <- DimPlot(lung, reduction = "umap",
+                     group.by = "Phase",
+                     cols = c("G1" = "#4DAF4A",
+                              "S"  = "#FF7F00",
+                              "G2M" = "#E41A1C"),
+                     pt.size = 0.4) +
+  ggtitle("D. Cell Cycle Phase") +
+  theme(plot.title = element_text(face = "bold"))
+
+ggsave(
+  "output/figures/00_SUMMARY_UMAP_panel.png",
+  (p_final1 | p_final2) / (p_final3 | p_final4),
+  width = 20, height = 16, dpi = 300
+)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SECTION 23: SAVE RESULTS
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Final Seurat object with all analyses embedded
+saveRDS(lung, "output/lung_dtc_seurat_final.rds")
+
+# Summary metadata table
+meta_export <- lung@meta.data[, c(
+  "nFeature_RNA", "nCount_RNA", "percent.mt", "percent.rb",
+  "seurat_clusters", "celltype_consensus", "celltype_blueprint",
+  "broad_class", "Phase", "S.Score", "G2M.Score",
+  "EMT_Epithelial_Score", "EMT_Mesenchymal_Score", "EMT_Index",
+  "AUCell_dominant"
+)]
+write.csv(meta_export, "output/tables/07_full_cell_metadata.csv",
+          row.names = TRUE)
+
+# Session info for reproducibility
+writeLines(capture.output(sessionInfo()),
+           "output/session_info.txt")
+
+cat("\n=== Analysis Complete ===\n")
+cat("Seurat object saved: output/lung_dtc_seurat_final.rds\n")
+cat("Figures saved to:    output/figures/\n")
+cat("Tables saved to:     output/tables/\n\n")
+
+cat("Research Questions Summary:\n")
+cat("  Q1 Tumor vs TME?               → Figures 19, 16\n")
+cat("  Q2 Intra-tumor heterogeneity?  → Figures 33–35\n")
+cat("  Q3 EMT / metastatic status?    → Figures 20–23\n")
+cat("  Q4 Proliferating subclones?    → Figures 24–26\n")
+cat("  Q5 Immune contexture?          → Figures 27–28\n")
+cat("  Q6 Immunotherapy targets?      → Figures 29–32\n")
+cat("  Q7 Hallmark pathways active?   → Figures 40–42\n")
+cat("  Q8 Stromal support?            → Figures 43–44\n")
 
 ```
 
