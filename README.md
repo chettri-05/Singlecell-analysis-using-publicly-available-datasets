@@ -1,5 +1,5 @@
-# Singlecell-analysis-using-publicly-available-datasets
-# 🫁 Single-cell RNA-seq Analysis of NSCLC Tumor Cells (Demonstration Project)
+
+## 🫁 Single-cell RNA-seq Analysis of NSCLC Tumor Cells (Demonstration Project)
 
 This repository contains a **demonstration workflow for single-cell RNA sequencing (scRNA-seq) analysis** using a publicly available dataset of Stage III squamous cell lung carcinoma (NSCLC) tumor cells.
 
@@ -8,9 +8,9 @@ This repository contains a **demonstration workflow for single-cell RNA sequenci
 
 ---
 
-# 🧬 Dataset Overview
+## 🧬 Dataset Overview
 
-## 🫁 Biological context
+### 🫁 Biological context
 - Disease: Non-small cell lung cancer (NSCLC)
 - Subtype: Squamous cell carcinoma
 - Stage: III
@@ -21,7 +21,7 @@ This repository contains a **demonstration workflow for single-cell RNA sequenci
 
 ---
 
-## 🔬 Single-cell RNA-seq data
+### 🔬 Single-cell RNA-seq data
 
 - Platform: 10x Genomics Chromium X
 - Chemistry: 5' Gene Expression (v2)
@@ -31,7 +31,7 @@ This repository contains a **demonstration workflow for single-cell RNA sequenci
 
 ---
 
-# 🎯 Project Objective
+## 🎯 Project Objective & Structure
 
 This repository demonstrates a **standard scRNA-seq analysis pipeline**, including:
 
@@ -43,44 +43,77 @@ This repository demonstrates a **standard scRNA-seq analysis pipeline**, includi
 - Cell type annotation
 - Marker gene identification
 
+```
+NSCLC-scRNA-demo/
+│
+├── README.md
+├── LICENSE
+├── .gitignore
+│
+├── data/
+│   ├── raw/                  # downloaded 10x files (optional)
+│   └── processed/            # filtered_feature_bc_matrix.h5
+│
+├── scripts/
+│   ├── 01_load_qc.R
+│   ├── 02_normalization.R
+│   ├── 03_dimensionality_reduction.R
+│   ├── 04_clustering.R
+│   ├── 05_marker_analysis.R
+│
+│   ├── 01_load_qc.py
+│   ├── 02_preprocessing.py
+│   ├── 03_umap_clustering.py
+│
+├── results/
+│   ├── figures/
+│   ├── tables/
+│
+├── notebooks/
+│   ├── seurat_analysis.ipynb
+│   ├── scanpy_analysis.ipynb
+│
+└── docs/
+    └── workflow_diagram.png
+```
 ---
 
-# ⚙️ Analysis Workflow
+## ⚙️ Analysis Workflow
 
-## 1. Data loading
+### 1. Data loading
 - Import 10x Genomics filtered gene expression matrix
 
-## 2. Quality control
+### 2. Quality control
 - Filter low-quality cells based on:
   - gene count thresholds
   - UMI counts
   - mitochondrial gene percentage
 
-## 3. Data normalization
+### 3. Data normalization
 - Log normalization or SCTransform
 
-## 4. Feature selection
+### 4. Feature selection
 - Identification of highly variable genes (HVGs)
 
-## 5. Dimensionality reduction
+### 5. Dimensionality reduction
 - Principal Component Analysis (PCA)
 - UMAP visualization
 
-## 6. Clustering
+### 6. Clustering
 - Leiden / Louvain clustering algorithm
 
-## 7. Cell type annotation
+### 7. Cell type annotation
 - Identification of major cell populations:
   - tumor epithelial cells
   - immune cells (T cells, B cells, NK cells, macrophages)
   - stromal cells
 
-## 8. Differential expression analysis
+### 8. Differential expression analysis
 - Identification of cluster-specific marker genes
 
 ---
 
-# 🧰 Tools & Technologies
+## 🧰 Tools & Technologies
 
 ### R-based analysis
 - Seurat
@@ -96,7 +129,7 @@ This repository demonstrates a **standard scRNA-seq analysis pipeline**, includi
 
 ---
 
-# 📦 Input Data
+## 📦 Input Data
 
 Only processed 10x Genomics gene expression data is used:
 
@@ -106,7 +139,7 @@ OR
 
 ---
 
-# 📊 Expected Outputs
+## 📊 Expected Outputs
 
 - Cell clustering visualization (UMAP)
 - Cluster annotation maps
@@ -115,7 +148,7 @@ OR
 
 ---
 
-# 🚫 Scope Limitations
+## 🚫 Scope Limitations
 
 This repository does NOT include:
 - Long-read sequencing analysis (Oxford Nanopore)
@@ -124,7 +157,7 @@ This repository does NOT include:
 
 ---
 
-# 🧠 Purpose
+## 🧠 Purpose
 
 This project is designed as a:
 
@@ -138,14 +171,14 @@ It is intended for:
 
 ---
 
-# 📜 Data Source
+## 📜 Data Source
 
 Publicly available 10x Genomics dataset of NSCLC tumor cells.  
 All data used complies with the original data usage and licensing terms.
 
 ---
 
-# ⚖️ License
+## ⚖️ License
 
 This repository is for educational purposes only.  
 No clinical or diagnostic claims are made.
