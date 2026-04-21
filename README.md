@@ -369,7 +369,7 @@ lung <- CreateSeuratObject(
 
 cat("Initial object:\n")
 print(lung)
-# Output: 21542 features across 2521 samples within 1 assay, Active assay: RNA (21542 features, 0 variable features), 1 layer present: counts
+# O: 21542 features across 2521 samples within 1 assay, Active assay: RNA (21542 features, 0 variable features), 1 layer present: counts
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -403,7 +403,7 @@ lung[["log10_nCount"]] <- log10(lung$nCount_RNA + 1)
 cat("QC summary before filtering:\n")
 print(summary(lung@meta.data[, c("nFeature_RNA", "nCount_RNA",
                                   "percent.mt", "percent.rb")]))
-
+# O: Cells before QC: 2521
 # ── Visualize before filtering ────────────────────────────────────────────────
 
 p_qc1 <- VlnPlot(
@@ -452,6 +452,9 @@ lung <- subset(
 cat(sprintf("Cells after QC:  %d\n", ncol(lung)))
 cat(sprintf("Genes retained:  %d\n", nrow(lung)))
 
+# O: Cells after QC:  2387
+     Genes retained:  21542
+
 # ── Visualize after filtering ─────────────────────────────────────────────────
 
 p_qc2 <- VlnPlot(
@@ -472,7 +475,6 @@ ggsave("output/figures/03_QC_violin_after.png",
 #  • Uses a regularized negative binomial regression to model UMI counts
 #  • Automatically corrects for sequencing depth differences
 #  • vars.to.regress = "percent.mt" removes mitochondrial contamination signal
-#  • Returns 3,000 variable features by default (better for complex tumor data)
 
 lung <- SCTransform(
   lung,
@@ -512,9 +514,26 @@ ggsave("output/figures/05_elbow_plot.png",
 # Top gene loadings per PC
 print(lung[["pca"]], dims = 1:5, nfeatures = 5)
 
+#O: PC_ 1 
+Positive:  FTL, TYROBP, IFI30, APOE, C1QA 
+Negative:  CCL5, CD7, GZMB, IL32, CD3E 
+PC_ 2 
+Positive:  KRT19, KRT6A, FXYD3, KRT5, S100A2 
+Negative:  CCL5, CD74, HLA-DRA, C1QB, C1QA 
+PC_ 3 
+Positive:  CCL5, GZMB, CD7, CD8A, GZMA 
+Negative:  HSPA1A, CD74, MS4A1, CD79A, HSPA1B 
+PC_ 4 
+Positive:  CLU, IFITM3, TPSAB1, TPSB2, BACE2 
+Negative:  CD74, HLA-DRA, MS4A1, CD79A, BANK1 
+PC_ 5 
+Positive:  HSPA1A, HSPA1B, DNAJB1, HSPA6, RNASE1 
+Negative:  TPSAB1, CPA3, TPSB2, SLC24A3, HDC
+
+
 p_pca_load <- VizDimLoadings(lung, dims = 1:4, reduction = "pca")
 ggsave("output/figures/06_PCA_loadings.png",
-       p_pca_load, width = 12, height = 8, dpi = 300)
+       p_pca_load, width = 12, height = 11, dpi = 300)
 
 p_pca_scatter <- DimPlot(lung, reduction = "pca") +
   ggtitle("PCA — All Cells")
@@ -540,12 +559,44 @@ lung <- FindClusters(lung, resolution = 0.3)
 lung <- FindClusters(lung, resolution = 0.5)
 lung <- FindClusters(lung, resolution = 0.8)
 
+# O: Modularity Optimizer version 1.3.0 by Ludo Waltman and Nees Jan van Eck
+Number of nodes: 2387
+Number of edges: 76120
+Running Louvain algorithm...
+0%   10   20   30   40   50   60   70   80   90   100%
+[----|----|----|----|----|----|----|----|----|----|
+**************************************************|
+Maximum modularity in 10 random starts: 0.9338
+Number of communities: 9
+
+> lung <- FindClusters(lung, resolution = 0.5)
+Number of nodes: 2387
+Number of edges: 76120
+Maximum modularity in 10 random starts: 0.9065
+Number of communities: 12
+
+> lung <- FindClusters(lung, resolution = 0.8)
+Number of nodes: 2387
+Number of edges: 76120
+Maximum modularity in 10 random starts: 0.8773
+Number of communities: 16
+
+Interpretation
+| Resolution | Clusters | Modularity | Interpretation |
+| ---------- | -------- | ---------- | -------------- |
+| 0.3        | 9        | 0.9338     | very coarse    |
+| 0.5        | 12       | 0.9065     | balanced       |
+| 0.8        | 16       | 0.8773     | fine-grained   |
+
 # Use resolution 0.5 as working clustering
 lung <- FindClusters(lung, resolution = 0.5)
 
 cat("Clusters found (resolution 0.5):", length(levels(Idents(lung))), "\n")
 cat("Cluster sizes:\n")
 print(table(Idents(lung)))
+
+# O:   0   1   2   3   4   5   6   7   8   9  10  11 
+     505 363 351 244 236 182 159 100  87  66  56  38 
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -687,22 +738,95 @@ panel_identity <- list(
   "Endothelial"     = c("PECAM1", "VWF", "CDH5", "ENG", "CLDN5")
 )
 
+# ── Panel A: Cell type identity markers ───────────────────────────────────────
+panel_identity <- list(
+  
+  # Squamous cell carcinoma — the primary tumor cell type
+  "SCC Tumor"       = c("EPCAM", "KRT19", "KRT18", "KRT5", "KRT14",
+                        "TP63", "SOX2", "FGFR1", "EGFR"),
+  
+  # Mesenchymal / EMT (epithelial → mesenchymal transition)
+  "EMT / Mesenchymal" = c("VIM", "CDH2", "FN1", "SNAI1", "SNAI2",
+                          "TWIST1", "ZEB1", "ZEB2"),
+  
+  # T cells — general
+  "T cells"         = c("CD3D", "CD3E", "CD3G", "TRAC", "TRBC1"),
+  
+  # CD8 cytotoxic T cells
+  "CD8 T cells"     = c("CD8A", "CD8B", "GZMB", "GZMK", "PRF1",
+                        "IFNG", "NKG7"),
+  
+  # CD4 helper T cells
+  "CD4 T cells"     = c("CD4", "IL7R", "CCR7", "LTB", "SELL"),
+  
+  # Regulatory T cells
+  "Treg"            = c("FOXP3", "IL2RA", "CTLA4", "IKZF2"),
+  
+  # NK cells
+  "NK cells"        = c("NKG7", "GNLY", "KLRD1", "NCR1", "NCAM1"),
+  
+  # B cells
+  "B cells"         = c("MS4A1", "CD79A", "CD74", "IGHM"),
+  
+  # Monocytes / Macrophages
+  "Myeloid"         = c("LYZ", "CD14", "FCGR3A", "S100A8", "S100A9",
+                        "CST3", "CTSS"),
+  
+  # M2 / Immunosuppressive macrophages
+  "M2 Macrophage"   = c("CD163", "MRC1", "IL10", "CCL18", "TGFB1"),
+  
+  # Dendritic cells
+  "Dendritic cells" = c("FCER1A", "CST3", "IL3RA", "CLEC4C"),
+  
+  # Cancer-associated fibroblasts
+  "CAF"             = c("COL1A1", "COL3A1", "FAP", "ACTA2",
+                        "PDGFRA", "THY1"),
+  
+  # Endothelial cells
+  "Endothelial"     = c("PECAM1", "VWF", "CDH5", "ENG", "CLDN5")
+)
+
 # Filter to genes present in the dataset
 panel_identity_present <- lapply(panel_identity, function(genes) {
   intersect(genes, rownames(lung))
 })
 panel_identity_present <- Filter(function(x) length(x) > 0,
-                                  panel_identity_present)
+                                 panel_identity_present)
 
 # DotPlot — % expressing + average expression
-p_id_dot <- DotPlot(lung, features = panel_identity_present, assay = "SCT") +
+genes_all <- unique(unlist(panel_identity_present))
+p_id_dot <- DotPlot(
+  lung,
+  features = genes_all,
+  assay = "SCT"
+) +
   RotatedAxis() +
   scale_color_gradient2(low = "blue", mid = "white", high = "red") +
   ggtitle("Cell Identity Marker Panel — All Clusters") +
   theme(axis.text.x = element_text(size = 7))
-ggsave("output/figures/14_identity_marker_dotplot.png",
-       p_id_dot, width = 20, height = 8, dpi = 300)
+ggsave(
+  "output/figures/14_cell_identity_dotplot.png",
+  p_id_dot,
+  width = 16,
+  height = 8,
+  dpi = 300
+)
+p1 <- DotPlot(lung, features = panel_identity_present$`SCC Tumor`) +
+  RotatedAxis() + ggtitle("Tumor Markers")
 
+p2 <- DotPlot(lung, features = panel_identity_present$`T cells`) +
+  RotatedAxis() + ggtitle("T Cells")
+
+p3 <- DotPlot(lung, features = panel_identity_present$Myeloid) +
+  RotatedAxis() + ggtitle("Myeloid Cells")
+
+p4 <- DotPlot(lung, features = panel_identity_present$CAF) +
+  RotatedAxis() + ggtitle("Fibroblasts / CAFs")
+
+ggsave("output/figures/14atumor_markers.png", p1, width = 10, height = 6)
+ggsave("output/figures/14btcell_markers.png", p2, width = 10, height = 6)
+ggsave("output/figures/14cmyeloid_markers.png", p3, width = 10, height = 6)
+ggsave("output/figures/14dcaf_markers.png", width = 10, height = 6)
 # UMAP feature plots for key markers
 key_markers <- c("EPCAM", "KRT19", "VIM", "CDH2",
                   "CD3D", "CD8A", "NKG7", "MS4A1",
@@ -719,6 +843,10 @@ ggsave("output/figures/15_key_markers_featureplot.png",
 # ─────────────────────────────────────────────────────────────────────────────
 # SECTION 11: CELL TYPE ANNOTATION — SingleR
 # ─────────────────────────────────────────────────────────────────────────────
+| Reference        | Purpose                       |
+| ---------------- | ----------------------------- |
+| Blueprint/ENCODE | immune + blood + some stromal |
+| HPCA             | broad human primary tissues   |
 
 # Load reference datasets
 ref_blueprint <- celldex::BlueprintEncodeData()    # immune-focused
