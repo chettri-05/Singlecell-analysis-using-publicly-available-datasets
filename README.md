@@ -46,6 +46,7 @@ This repository demonstrates a **standard scRNA-seq analysis pipeline**, includi
 - Cell type annotation
 - Marker gene identification
 
+
 ```
 NSCLC-scRNA-demo/
 │
@@ -82,19 +83,28 @@ NSCLC-scRNA-demo/
 ---
 
 ## Repository Structure
-
 ```
 .
-├── analysis.R                        # Full analysis script (Sections 1–14)
+├── lung_dtc_seurat_analysis.R          # Complete analysis script (Sections 1–23)
 ├── README.md
-├── output/
-│   ├── lung_dtc_final.rds            # Final Seurat object
-│   ├── lung_dtc_all_markers.csv      # Marker genes for every cluster
-│   ├── epithelial_markers.csv        # Markers for epithelial subclusters
-│   ├── cluster_celltype_composition.csv
-│   └── images/
-│       └── lung_dtc_umap_final.png   # Publication-quality UMAP
+└── output/
+    ├── lung_dtc_seurat_final.rds       # Final Seurat object (all analyses embedded)
+    ├── session_info.txt
+    ├── figures/                        # All 46 publication-quality figures (.png, 300 dpi)
+    │   ├── 00_SUMMARY_UMAP_panel.png
+    │   ├── 01_QC_violin_before.png
+    │   ├── ...
+    │   └── 46_SCC_markers_dotplot.png
+    └── tables/                         # CSV exports
+        ├── 01_all_cluster_markers.csv
+        ├── 02_top10_markers_per_cluster.csv
+        ├── 03_celltype_counts.csv
+        ├── 04_cluster_celltype_composition.csv
+        ├── 05_proliferation_per_cluster.csv
+        ├── 06_tumor_subclone_markers.csv
+        └── 07_full_cell_metadata.csv
 ```
+
 
 ---
 
@@ -114,62 +124,90 @@ Load all libraries needed for the full pipeline.
 ### 3. Load Data & Create Seurat Object
 Read the filtered HDF5 file with `Read10X_h5()` and initialise a Seurat object. Genes expressed in fewer than 3 cells and cells with fewer than 200 detected genes are discarded at this stage.
 
-### 4. Quality Control (QC)
-- Compute **mitochondrial %** (`percent.mt`) and **ribosomal %** (`percent.rb`)
-- Visualise distributions with violin plots and scatter plots
-- Filter cells: `nFeature_RNA` 200–6,000, `percent.mt` < 20%
-- Re-visualise after filtering to confirm thresholds are appropriate
+### 4. Quality Control
+Compute mitochondrial % (`percent.mt`), ribosomal % (`percent.rb`), and
+log10 UMI counts. Visualise with violin plots and scatter plots before and
+after filtering. Apply tumor-appropriate thresholds:
+`nFeature_RNA` 200–6,000, `percent.mt` < 20%.
 
-### 5. Normalization with SCTransform
-Replace the classical `NormalizeData → FindVariableFeatures → ScaleData` workflow with a single `SCTransform()` call. Mitochondrial % is regressed out automatically. Identifies 3,000 variable features by default.
-
-### 6. Dimensionality Reduction: PCA
-- Run PCA on SCTransform variable features
-- Assess dimensionality with `ElbowPlot()` (variance explained per PC)
-- Inspect top loading genes per PC and dimensional heatmaps
+### 5. Normalization — SCTransform
+`SCTransform(vst.flavor = "v2", vars.to.regress = "percent.mt")` replaces
+`NormalizeData + FindVariableFeatures + ScaleData`. Corrects for sequencing
+depth and mitochondrial contamination simultaneously.
+### 6. Dimensionality Reduction — PCA
+Run PCA on SCT variable features (50 components). Elbow plot to select
+optimal number of PCs. Inspect loadings with `VizDimLoadings` and
+`DimHeatmap`.
 
 ### 7. Clustering
-- Build a KNN graph with `FindNeighbors()` (dims 1:20)
-- Cluster with the Louvain algorithm via `FindClusters()` (resolution = 0.5)
-- Inspect cluster sizes with `table(Idents())`
+KNN graph (`FindNeighbors`, `dims = 1:25`). Leiden/Louvain clustering tested at resolutions 0.3, 0.5, 0.8. Working resolution: 0.5.
 
-### 8. Non-linear Dimensionality Reduction: UMAP & t-SNE
-- Run `RunUMAP()` and `RunTSNE()` (dims 1:20)
-- Compare UMAP and t-SNE layouts side-by-side
+### 8. UMAP + t-SNE
+Both 2D embeddings generated. QC metrics overlaid on UMAP to flag low-quality clusters.
 
 ### 9. Marker Gene Identification
-- `FindAllMarkers()` (SCT assay, only positive markers, `logfc.threshold = 0.25`)
-- Top 10 marker genes per cluster exported as CSV
-- Known lung cancer and immune markers visualised as `FeaturePlot` and `DotPlot`
-- Top 5 per cluster summarised in a `DoHeatmap`
+`FindAllMarkers` (SCT assay, Wilcoxon, `only.pos = TRUE`). Top 10 markers per cluster exported. Heatmap and dot plot generated.
 
-### 10. Automated Cell Type Annotation with SingleR
-- Reference datasets: **Blueprint/ENCODE** (immune focused) and **Human Primary Cell Atlas** (broad coverage)
-- Consensus label: Blueprint label where available, HPCA otherwise
-- Annotation confidence inspected with `plotScoreHeatmap()`
-- UMAP coloured by each annotation and the consensus
+### 10. Canonical Marker Panels
+13-panel marker set covering SCC Tumor, EMT, T cells (CD4/CD8/Treg), NK, Bcells, Myeloid, M2 Macrophage, Dendritic Cells, CAF, and Endothelial cells.
+Dot plot and UMAP feature plots generated.
 
-### 11. AUCell: Gene Set Activity Scoring
-- Custom gene sets covering 10 biologically relevant programs (Epithelial Tumor, EMT, T cells, CD8 Cytotoxic, CD4 Helper, NK, B cells, Myeloid, Fibroblast, Endothelial)
-- Rankings built from SCT log-normalised matrix
-- AUC scores stored in metadata; dominant program assigned per cell
-- Bimodal threshold exploration with `AUCell_exploreThresholds()`
-
-### 12. MSigDB Hallmark Pathway Scoring
-- All 50 Hallmark pathways downloaded via `msigdbr`
-- AUC scores calculated per cell per pathway
-- Key cancer pathways visualised: **IFN-γ Response**, **Hypoxia**, **EMT**, **MYC Targets**, **TNFα–NFκB**, **G2M Checkpoint**
-- Violin plots per cell type for selected pathways
-
-### 13. Subset Analysis — Tumor Epithelial & EMT Cells
-- Subset cells annotated as epithelial/keratinocyte
-- Re-run SCTransform, PCA, clustering, and UMAP on the subset
-- Find within-subtype marker genes
-- Export markers and heatmap
-
-### 14. Save Results
-- Final Seurat object saved as `.rds`
-- Marker tables, composition tables, and UMAP image saved to `output/`
+### 11. Cell Type Annotation — SingleR
+Two reference datasets: Blueprint/ENCODE (immune-focused) and Human
+Primary Cell Atlas (broad coverage). Consensus annotation created.
+Annotation score heatmaps generated. Cluster × CellType composition table
+exported.
+### 12. Tumor vs TME Classification
+Each cell classified as `Tumor_Epithelial`, `Immune_TME`, `Stromal_TME`, or
+`Unassigned` using SingleR consensus labels and EPCAM expression. UMAP
+coloured by broad class.
+### 13. EMT Analysis (Q3)
+Epithelial and mesenchymal program scores computed with `AddModuleScore`.
+EMT Index = Mesenchymal Score − Epithelial Score. Scatter plot reveals the
+epithelial–mesenchymal continuum. Violin plot shows EMT distribution per
+cluster. Key EMT genes plotted on UMAP.
+### 14. Proliferation Analysis (Q4)
+Cell cycle scoring with `CellCycleScoring` using Seurat's built-in S and
+G2/M gene sets. UMAP coloured by phase. Proliferation markers (MKI67,
+TOP2A, PCNA) visualised. Fraction of proliferating cells per cluster
+exported.
+### 15. Immune Contexture Analysis (Q5)
+Immune cells subsetted and re-clustered independently. UMAP and feature
+plots generated for key immune subtypes: CD8 T, CD4 T, Treg, NK, B cells,
+Myeloid.
+### 16. Immunotherapy Target Analysis (Q6)
+Four-panel checkpoint analysis: (1) T cell exhaustion markers (PDCD1/PD-1,
+HAVCR2/TIM-3, TIGIT, LAG3, CTLA4, TOX), (2) Checkpoint ligands (CD274/PD-L1,
+PDCD1LG2, LGALS9, CD155), (3) Cytotoxic effectors (GZMB, PRF1, IFNG), (4)
+Treg / immunosuppression (FOXP3, IL10, TGFB1). PD-L1 high cells quantified
+and mapped.
+### 17. Tumor Subclone Analysis (Q2)
+Tumor epithelial cells isolated and independently re-processed (SCTransform,
+PCA, clustering, UMAP). Subclone-specific markers identified. EMT index and
+cell cycle phase overlaid on subclone UMAP.
+### 18. AUCell Gene Set Scoring
+Ten biologically motivated gene sets scored per cell using AUCell: SCC
+Tumor, EMT, Proliferation, Hypoxia, Immune Evasion, Cytotoxic T, T
+Exhaustion, M2 Macrophage, CAF, Angiogenesis. Dominant program assigned per
+cell. Heatmap of mean AUC per cluster generated.
+### 19. MSigDB Hallmark Pathway Scoring
+All 50 Hallmark pathways downloaded via `msigdbr` and scored with AUCell.
+Twelve cancer-relevant pathways visualised: EMT, Hypoxia, IFN-γ Response,
+MYC Targets, G2M Checkpoint, TNFα–NFκB, IL6–JAK–STAT3, Inflammatory
+Response, Oxidative Phosphorylation, PI3K–AKT–mTOR, UPR, Apoptosis.
+### 20. Stromal Analysis (Q8)
+CAF, myofibroblast, endothelial, and pericyte marker panels visualised.
+Angiogenesis markers (VEGFA, KDR, FLT1) mapped on UMAP.
+### 21. SCC-Specific Markers
+Lung squamous cell carcinoma lineage markers: TP63, SOX2, KRT5, KRT14,
+FGFR1, EGFR, MMP family (invasion), S100A4 (metastasis promoter).
+### 22. Summary Figure Panel
+Publication-ready 2×2 UMAP panel: clusters, cell type annotation, tumor vs
+TME, cell cycle phase.
+### 23. Save Results
+Seurat object saved as `.rds`. All metadata exported as CSV.
+`sessionInfo()` written for reproducibility.
+---
 
 ---
 
@@ -330,7 +368,7 @@ lung <- CreateSeuratObject(
 
 cat("Initial object:\n")
 print(lung)
-# Expected: ~36,000 features × ~2,600 cells
+# Expected: 21542 features across 2521 samples within 1 assay, Active assay: RNA (21542 features, 0 variable features), 1 layer present: counts
 
 
 # ─────────────────────────────────────────────────────────────────────────────
