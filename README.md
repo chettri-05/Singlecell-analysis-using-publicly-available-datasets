@@ -369,7 +369,7 @@ lung <- CreateSeuratObject(
 
 cat("Initial object:\n")
 print(lung)
-# Expected: 21542 features across 2521 samples within 1 assay, Active assay: RNA (21542 features, 0 variable features), 1 layer present: counts
+# Output: 21542 features across 2521 samples within 1 assay, Active assay: RNA (21542 features, 0 variable features), 1 layer present: counts
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -387,6 +387,7 @@ print(lung)
 #  • DTCs under metastatic stress → elevated mitochondrial activity is expected
 #  • Chromium X has higher sensitivity → genuine cells may have higher counts
 #  Applying PBMC thresholds would DISCARD real tumor cells.
+
 
 # ── Compute QC metrics ────────────────────────────────────────────────────────
 
@@ -413,6 +414,14 @@ p_qc1 <- VlnPlot(
 
 ggsave("output/figures/01_QC_violin_before.png",
        p_qc1, width = 18, height = 5, dpi = 300)
+
+# Here what are we questioning?
+| Metric          | Role                           |
+| --------------- | ------------------------------ |
+| UMI count       | “how much RNA did we capture?” |
+| % mitochondrial | “is the cell dying?”           |
+| gene count      | “how complex is the cell?”     |
+| ribosomal %     | “is protein machinery active?” |
 
 p_scatter1 <- FeatureScatter(lung, "nCount_RNA", "percent.mt") +
   geom_hline(yintercept = 20, linetype = "dashed", color = "red") +
