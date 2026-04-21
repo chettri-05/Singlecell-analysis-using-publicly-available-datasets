@@ -207,6 +207,7 @@ TME, cell cycle phase.
 ### 23. Save Results
 Seurat object saved as `.rds`. All metadata exported as CSV.
 `sessionInfo()` written for reproducibility.
+
 ---
 
 ---
@@ -1582,16 +1583,45 @@ cat("  Q7 Hallmark pathways active?   → Figures 40–42\n")
 cat("  Q8 Stromal support?            → Figures 43–44\n")
 
 ```
+### Output figures
+```
+Output Figures (46 total)
+Figure	Content
+00	SUMMARY: 2×2 UMAP panel (clusters, annotation, TME, cell cycle)
+01–03	QC violin plots before and after filtering
+02	QC scatter plots (UMI vs MT%, UMI vs genes)
+04	Highly variable genes plot
+05	PCA elbow plot
+06–07	PCA loadings and scatter
+08–10	UMAP, t-SNE, side-by-side comparison
+11	QC metrics overlaid on UMAP
+12–13	Marker gene heatmap and dot plot
+14–15	Cell identity marker dot plot and feature plots
+16–18	SingleR annotations and score heatmaps
+19	Tumor vs TME UMAP
+20–23	EMT scores, scatter, violin, feature plots
+24–26	Cell cycle UMAP, scatter, proliferation markers
+27–28	Immune subcluster UMAP and markers
+29–32	Checkpoint/immunotherapy dot plots and feature plots
+33–35	Tumor subclone UMAP, EMT, heatmap
+36–39	AUCell dominant program, feature plots, heatmap, violin
+40–42	Hallmark UMAP grid, violin, cluster heatmap
+43–44	Stromal dot plot, angiogenesis markers
+45–46	SCC-specific markers feature plot and dot plot
+```
+## Key Biological Findings
+Tumor fraction: X% of cells are EPCAM+ squamous carcinoma cells
+EMT status: Cluster X shows highest mesenchymal index (EMT_Index > 0)
+suggesting active metastatic transition
+Proliferating subclone: Cluster X contains X% S/G2M cells, expressing
+MKI67 and TOP2A
+Immune infiltrate: CD8 T cells detected; exhaustion markers (PD-1, TIM-3)
+expressed on X% of T cells
+PD-L1 expression: X% of cells are PD-L1 high; predominantly on
+[cluster/cell type]
+Active hallmarks: EMT and Hypoxia pathways most active in tumor cells;
+IFN-γ Response elevated in immune clusters
 
-## Key Results
-
-| Step | Output |
-|---|---|
-| Post-QC cells | ~2,400–2,550 (dataset-dependent) |
-| PCs used | 20 |
-| Clusters (res 0.5) | ~8–12 |
-| Cell types (SingleR consensus) | Epithelial, T cells, NK, B cells, Myeloid, Fibroblasts, Endothelial |
-| Top Hallmark programs | EMT, Hypoxia, IFN-γ Response, MYC Targets |
 
 ---
 
@@ -1603,35 +1633,6 @@ cat("  Q8 Stromal support?            → Figures 43–44\n")
 - [AUCell](https://bioconductor.org/packages/AUCell/) — Aibar et al. (2017) *Nature Methods*
 - [MSigDB](https://www.gsea-msigdb.org/gsea/msigdb) — Liberzon et al. (2015) *Cell Systems*
 - [10x Genomics Lung Carcinoma DTC Dataset](https://www.10xgenomics.com/datasets)
-
----
-
-
-## 🧰 Tools & Technologies
-
-### R-based analysis
-- Seurat
-
-### Python-based analysis
-- Scanpy
-- AnnData framework
-
-### Visualization
-- UMAP / t-SNE plots
-- Heatmaps
-- Violin plots
-
----
-
-
----
-
-## 📊 Expected Outputs
-
-- Cell clustering visualization (UMAP)
-- Cluster annotation maps
-- Marker gene expression heatmaps
-- Tumor vs immune composition analysis
 
 ---
 
