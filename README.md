@@ -1,6 +1,9 @@
 
-## 🫁 Single-cell RNA-seq Analysis of NSCLC Tumor Cells (Demonstration Project)
+## 🫁 scRNA-seq Analysis: 3k Human Squamous Cell Lung Carcinoma Disseminated Tumor Cells (DTCs) (Demonstration Project)
 
+![R](https://img.shields.io/badge/R-%3E%3D4.3-blue) ![Seurat](https://img.shields.io/badge/Seurat-v5-green) ![License](https://img.shields.io/badge/license-MIT-lightgrey)
+
+End-to-end single-cell RNA-seq analysis pipeline for the **3k Human Squamous Cell Lung Carcinoma DTC** dataset (10x Chromium 5' v2), built with [Seurat v5](https://satijalab.org/seurat/) and standard Bioconductor tools.
 This repository contains a **demonstration workflow for single-cell RNA sequencing (scRNA-seq) analysis** using a publicly available dataset of Stage III squamous cell lung carcinoma (NSCLC) tumor cells.
 
 > ⚠️ **Disclaimer:**  
@@ -78,61 +81,6 @@ NSCLC-scRNA-demo/
 ```
 ---
 
-## ⚙️ Analysis Workflow
-
-### 1. Data loading
-- Import 10x Genomics filtered gene expression matrix
-
-### 2. Quality control
-- Filter low-quality cells based on:
-  - gene count thresholds
-  - UMI counts
-  - mitochondrial gene percentage
-
-### 3. Data normalization
-- Log normalization or SCTransform
-
-### 4. Feature selection
-- Identification of highly variable genes (HVGs)
-
-### 5. Dimensionality reduction
-- Principal Component Analysis (PCA)
-- UMAP visualization
-
-### 6. Clustering
-- Leiden / Louvain clustering algorithm
-
-### 7. Cell type annotation
-- Identification of major cell populations:
-  - tumor epithelial cells
-  - immune cells (T cells, B cells, NK cells, macrophages)
-  - stromal cells
-
-### 8. Differential expression analysis
-- Identification of cluster-specific marker genes
-
----
-
-# scRNA-seq Analysis: 3k Human Squamous Cell Lung Carcinoma Disseminated Tumor Cells (DTCs)
-
-![R](https://img.shields.io/badge/R-%3E%3D4.3-blue) ![Seurat](https://img.shields.io/badge/Seurat-v5-green) ![License](https://img.shields.io/badge/license-MIT-lightgrey)
-
-End-to-end single-cell RNA-seq analysis pipeline for the **3k Human Squamous Cell Lung Carcinoma DTC** dataset (10x Chromium 5' v2), built with [Seurat v5](https://satijalab.org/seurat/) and standard Bioconductor tools.
-
----
-
-## Dataset
-
-| Property | Value |
-|---|---|
-| Dataset | 3k Human Squamous Cell Lung Carcinoma DTCs |
-| Chemistry | Chromium Single Cell 5' v2 |
-| Input file | `SC5pv2_GEX_Human_Lung_Carcinoma_DTC_filtered_feature_bc_matrix.h5` |
-| Cells (raw) | 2,616 |
-| Genes | 36,601 |
-
----
-
 ## Repository Structure
 
 ```
@@ -150,10 +98,15 @@ End-to-end single-cell RNA-seq analysis pipeline for the **3k Human Squamous Cel
 
 ---
 
-## Pipeline Overview
+## ⚙️ Pipeline Overview
 
-### 1. Environment Setup & Package Installation
-Install all required CRAN, Bioconductor, and GitHub packages. Includes Seurat v5, SCTransform, SingleR, AUCell, ComplexHeatmap, and msigdbr.
+### 1. Download input files, Environment Setup & Package Installation
+📦 Input Data: Only processed 10x Genomics gene expression data is used:
+- `filtered_feature_bc_matrix.h5` (preferred)
+OR
+- `filtered_feature_bc_matrix/` directory
+
+📦 Install all required CRAN, Bioconductor, and GitHub packages. Includes Seurat v5, SCTransform, SingleR, AUCell, ComplexHeatmap, and msigdbr.
 
 ### 2. Load Libraries
 Load all libraries needed for the full pipeline.
@@ -260,7 +213,6 @@ source("analysis.R")
 
 # Outputs will appear in output/ and output/images/
 ```
-
 ---
 ```
 1. Environment Setup & Package Installation
@@ -754,9 +706,6 @@ cat("Analysis complete. Files saved to output/\n")
 
 ---
 
-## License
-
-MIT License. See `LICENSE` for details.
 
 ## 🧰 Tools & Technologies
 
@@ -774,13 +723,6 @@ MIT License. See `LICENSE` for details.
 
 ---
 
-## 📦 Input Data
-
-Only processed 10x Genomics gene expression data is used:
-
-- `filtered_feature_bc_matrix.h5` (preferred)
-OR
-- `filtered_feature_bc_matrix/` directory
 
 ---
 
@@ -828,6 +770,7 @@ All data used complies with the original data usage and licensing terms.
 This repository is for educational purposes only.  
 No clinical or diagnostic claims are made.
 
+MIT License. See `LICENSE` for details.
 ---
 
 # 🚀 Author Note
