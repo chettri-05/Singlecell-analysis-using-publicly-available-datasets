@@ -1,14 +1,16 @@
 # Singlecell-analysis-using-publicly-available-datasets
-# 🫁 Single-cell RNA-seq Analysis of Stage III Squamous Cell Lung Carcinoma (NSCLC)
+# 🫁 Single-cell RNA-seq Analysis of NSCLC Tumor Cells (Demonstration Project)
 
-This repository contains analysis of a **10x Genomics single-cell RNA-seq dataset** derived from Stage III squamous cell lung carcinoma (NSCLC) tumor samples.
-The dataset consists of dissociated tumor cells (DTCs) processed using the **10x Genomics Chromium X platform (5' Gene Expression v2 chemistry)**.
+This repository contains a **demonstration workflow for single-cell RNA sequencing (scRNA-seq) analysis** using a publicly available dataset of Stage III squamous cell lung carcinoma (NSCLC) tumor cells.
+
+> ⚠️ **Disclaimer:**  
+> This project is intended **for educational and demonstration purposes only**. It is not a clinical study and does not claim any novel biological discovery.
 
 ---
 
 # 🧬 Dataset Overview
 
-## 🫁 Biological source
+## 🫁 Biological context
 - Disease: Non-small cell lung cancer (NSCLC)
 - Subtype: Squamous cell carcinoma
 - Stage: III
@@ -26,111 +28,130 @@ The dataset consists of dissociated tumor cells (DTCs) processed using the **10x
 - Input cells: ~4,000
 - Recovered cells: 2,616
 - Sequencing depth: ~25,000 reads per cell
-- Library type: Paired-end Illumina sequencing
-
-### Read structure:
-- Read 1: Cell barcode + UMI
-- i5 / i7: Sample indexes
-- Read 2: Transcript sequence
 
 ---
 
-# 📦 Data files used
-Only the **10x Genomics gene expression output** is used:
-- `filtered_feature_bc_matrix.h5` (recommended)
-  OR
-- `filtered_feature_bc_matrix/` (MTX format)
+# 🎯 Project Objective
+
+This repository demonstrates a **standard scRNA-seq analysis pipeline**, including:
+
+- Quality control (QC) of single-cell data
+- Normalization and scaling
+- Identification of highly variable genes
+- Dimensionality reduction (PCA, UMAP)
+- Unsupervised clustering
+- Cell type annotation
+- Marker gene identification
 
 ---
 
-# 🧠 Objectives
-
-This project focuses on:
-- 🧬 Quality control of single-cell RNA-seq data
-- 🧬 Normalization and scaling
-- 🧬 Dimensionality reduction (PCA, UMAP)
-- 🧬 Cell clustering
-- 🧬 Identification of cell types in NSCLC tumor
-- 🧬 Marker gene analysis (tumor vs immune cells)
-
----
-
-# ⚙️ Analysis workflow
+# ⚙️ Analysis Workflow
 
 ## 1. Data loading
-- Import 10x Genomics filtered matrix
+- Import 10x Genomics filtered gene expression matrix
 
 ## 2. Quality control
-- Filter cells based on:
-  - gene count
-  - UMI count
-  - mitochondrial percentage
+- Filter low-quality cells based on:
+  - gene count thresholds
+  - UMI counts
+  - mitochondrial gene percentage
 
-## 3. Normalization
+## 3. Data normalization
 - Log normalization or SCTransform
 
 ## 4. Feature selection
-- Highly variable genes (HVGs)
+- Identification of highly variable genes (HVGs)
 
 ## 5. Dimensionality reduction
-- PCA
-- UMAP / t-SNE
+- Principal Component Analysis (PCA)
+- UMAP visualization
 
 ## 6. Clustering
-- Leiden / Louvain clustering
+- Leiden / Louvain clustering algorithm
 
-## 7. Cell annotation
-- Identify:
-  - tumor cells
-  - immune cells (T, B, NK, macrophages)
+## 7. Cell type annotation
+- Identification of major cell populations:
+  - tumor epithelial cells
+  - immune cells (T cells, B cells, NK cells, macrophages)
   - stromal cells
 
-## 8. Differential expression
-- Marker gene analysis per cluster
+## 8. Differential expression analysis
+- Identification of cluster-specific marker genes
 
 ---
 
-# 🧰 Tools used
+# 🧰 Tools & Technologies
 
-### R workflow
+### R-based analysis
 - Seurat
 
-### Python workflow
+### Python-based analysis
 - Scanpy
+- AnnData framework
+
+### Visualization
+- UMAP / t-SNE plots
+- Heatmaps
+- Violin plots
 
 ---
 
-# 🚫 What is NOT included
+# 📦 Input Data
 
-- No Oxford Nanopore long-read analysis
-- No isoform / splicing analysis
-- No multi-omics integration
-You may explore the additional data from https://www.10xgenomics.com/datasets/3k-human-squamous-cell-lung-carcinoma-dtcs-chromium-x-2-standard
+Only processed 10x Genomics gene expression data is used:
+
+- `filtered_feature_bc_matrix.h5` (preferred)
+OR
+- `filtered_feature_bc_matrix/` directory
 
 ---
 
-# 📊 Expected outputs
+# 📊 Expected Outputs
 
-- UMAP plots of cell clusters
-- Heatmaps of marker genes
-- Cluster annotations
+- Cell clustering visualization (UMAP)
+- Cluster annotation maps
+- Marker gene expression heatmaps
 - Tumor vs immune composition analysis
 
 ---
 
-# 📜 Metadata
+# 🚫 Scope Limitations
 
-| Attribute | Value |
-|----------|------|
-| Species | Homo sapiens |
-| Tissue | Lung |
-| Disease | NSCLC (Squamous cell carcinoma) |
-| Platform | 10x Genomics Chromium X |
-| Chemistry | 5' Gene Expression v2 |
-| Cells recovered | 2,616 |
+This repository does NOT include:
+- Long-read sequencing analysis (Oxford Nanopore)
+- Isoform or splicing-level analysis
+- One can add further analysis taking the data from https://www.10xgenomics.com/datasets/3k-human-squamous-cell-lung-carcinoma-dtcs-chromium-x-2-standard
 
 ---
 
-# 🚀 Purpose
+# 🧠 Purpose
 
-This project provides a **standard single-cell RNA-seq analysis pipeline for lung cancer tumor cells**, focusing on tumor heterogeneity and microenvironment composition.
+This project is designed as a:
+
+> 🧬 **Educational demonstration of standard single-cell RNA-seq analysis workflows in lung cancer research**
+
+It is intended for:
+- students
+- beginners in bioinformatics
+- scRNA-seq pipeline demonstration
+- methodological learning
+
+---
+
+# 📜 Data Source
+
+Publicly available 10x Genomics dataset of NSCLC tumor cells.  
+All data used complies with the original data usage and licensing terms.
+
+---
+
+# ⚖️ License
+
+This repository is for educational purposes only.  
+No clinical or diagnostic claims are made.
+
+---
+
+# 🚀 Author Note
+
+This project demonstrates a reproducible workflow for scRNA-seq analysis using standard bioinformatics tools and best practices.
