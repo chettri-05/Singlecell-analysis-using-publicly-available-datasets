@@ -315,17 +315,20 @@ print(lung)
 
 
 #### SECTION 4: QUALITY CONTROL
- NOTE — Tumor-specific QC thresholds:
- Threshold         PBMC (healthy)    Lung Carcinoma DTC
- nFeature_RNA max  2,500             6,000–8,000
- percent.mt max    5%                20%
+##### QC Threshold Comparison
+
+| Metric            | PBMC (Healthy Tissue) | Lung Carcinoma DTC (Tumor) |
+|------------------|----------------------|-----------------------------|
+| nFeature_RNA max | 2,500                | 6,000–8,000                 |
+| percent.mt max   | 5%                   | 20%                         |
 
 Reasons:
 • Carcinoma cells are large and transcriptionally complex → more genes/UMIs
 • DTCs under metastatic stress → elevated mitochondrial activity is expected
 • Chromium X has higher sensitivity → genuine cells may have higher counts
 Applying PBMC thresholds would DISCARD real tumor cells.
-Here what are we questioning?
+
+##### Here what are we questioning?
 | Metric          | Role                           |
 | --------------- | ------------------------------ |
 | UMI count       | “how much RNA did we capture?” |
@@ -402,9 +405,7 @@ cat(sprintf("Cells after QC:  %d\n", ncol(lung)))
 cat(sprintf("Genes retained:  %d\n", nrow(lung)))
 
 ```
-##### Output: 
-Cells after QC:  2387
-Genes retained:  21542
+##### Output: Cells after QC:  2387, Genes retained:  21542
 
 ```
 # ── Visualize after filtering ─────────────────────────────────────────────────
@@ -420,17 +421,21 @@ ggsave("output/figures/03_QC_violin_after.png",
 ```
 ![QC Violin Plot](output/figures/03_QC_violin_after.png)
 *Figure 1. Distribution of gene counts, UMI counts, mitochondrial and ribosomal percentages after filtering.*
+
+
+##### SECTION 5: NORMALIZATION — SCTransform
+SCTransform was used for normalization and variance stabilization of single-cell RNA-seq data.
+SCTransform provides improved normalization for complex datasets such as tumor samples, where technical noise and biological variability are higher compared to simpler datasets like PBMCs.
+
+##### Key Features
+| Feature | Description |
+|--------|------------|
+| Replaces standard workflow | Combines `NormalizeData`, `FindVariableFeatures`, and `ScaleData` into a single step |
+| Statistical model | Uses regularized negative binomial regression to model UMI counts |
+| Sequencing depth correction | Automatically normalizes for library size differences |
+| Mitochondrial regression | `vars.to.regress = "percent.mt"` removes unwanted variation from mitochondrial gene expression |
+
 ```
-
-#### SECTION 5: NORMALIZATION — SCTransform
-
-```
-# SCTransform:
-#  • Replaces NormalizeData + FindVariableFeatures + ScaleData
-#  • Uses a regularized negative binomial regression to model UMI counts
-#  • Automatically corrects for sequencing depth differences
-#  • vars.to.regress = "percent.mt" removes mitochondrial contamination signal
-
 lung <- SCTransform(
   lung,
   vars.to.regress = "percent.mt",
@@ -441,6 +446,7 @@ lung <- SCTransform(
 cat("SCTransform complete.\n")
 cat("Variable features (top 10):", head(VariableFeatures(lung), 10), "\n\n")
 ```
+#### Plot highly variable genes
 ```
 # Plot highly variable features
 p_hvg <- VariableFeaturePlot(lung)
@@ -461,11 +467,10 @@ ggsave("output/figures/04_variable_features.png",
   <em>Figure 4. Highly variable genes used for downstream analysis.</em>
 </p>
 
-```
-# ─────────────────────────────────────────────────────────────────────────────
-# SECTION 6: DIMENSIONALITY REDUCTION — PCA
-# ─────────────────────────────────────────────────────────────────────────────
 
+#### SECTION 6: DIMENSIONALITY REDUCTION — PCA
+
+```
 lung <- RunPCA(lung, features = VariableFeatures(lung), npcs = 50)
 
 # Elbow plot — identify how many PCs capture meaningful biological signal
@@ -489,8 +494,7 @@ ggsave("output/figures/05_elbow_plot.png",
 print(lung[["pca"]], dims = 1:5, nfeatures = 5)
 ```
 
-### PCA Loadings Summary
-
+##### PCA Loadings Summary
 | PC | Positive Markers | Negative Markers |
 |----|------------------|------------------|
 | PC1 | FTL, TYROBP, IFI30, APOE, C1QA | CCL5, CD7, GZMB, IL32, CD3E |
@@ -550,15 +554,13 @@ ggsave(
   <em>Figure 8. Key genes driving principal components in the dataset.</em>
 </p>
 
+
+#### SECTION 7: CLUSTERING
 ```
-# ─────────────────────────────────────────────────────────────────────────────
-# SECTION 7: CLUSTERING
-# ─────────────────────────────────────────────────────────────────────────────
 # n_dims = 25 chosen from elbow plot (tumor datasets need more PCs than PBMC
 # because there is more biological complexity — subclones, TME heterogeneity)
 
 N_DIMS <- 25   # adjust based on your elbow plot
-
 lung <- FindNeighbors(lung, dims = 1:N_DIMS)
 
 # Test multiple resolutions — tumor data often needs 0.3–0.8
@@ -567,7 +569,7 @@ lung <- FindClusters(lung, resolution = 0.5)
 lung <- FindClusters(lung, resolution = 0.8)
 
 ```
-### Clustering Summary (Louvain Algorithm)
+##### Clustering Summary (Louvain Algorithm)
 
 | Resolution | Nodes | Edges | Modularity | Communities (Clusters) |
 |------------|-------|-------|------------|-------------------------|
@@ -575,7 +577,7 @@ lung <- FindClusters(lung, resolution = 0.8)
 | 0.5        | 2387  | 76120 | 0.9065     | 12                      |
 | 0.8        | 2387  | 76120 | 0.8773     | 16                      |
 
-### Interpretation
+##### Interpretation
 | Resolution | Clusters | Modularity | Interpretation |
 | ---------- | -------- | ---------- | -------------- |
 | 0.3        | 9        | 0.9338     | very coarse    |
@@ -589,7 +591,6 @@ lung <- FindClusters(lung, resolution = 0.8)
 
 Based on modularity and cluster granularity, resolution **0.5** was selected as it provides a balanced representation of tumor heterogeneity without over-fragmentation.
 
-
 ```
 lung <- FindClusters(lung, resolution = 0.5)
 
@@ -597,7 +598,7 @@ cat("Clusters found (resolution 0.5):", length(levels(Idents(lung))), "\n")
 cat("Cluster sizes:\n")
 print(table(Idents(lung)))
 ```
-### Output:
+##### Output:
 | Cluster | Cells |
 |--------|------|
 | 0 | 505 |
@@ -613,11 +614,9 @@ print(table(Idents(lung)))
 | 10 | 56 |
 | 11 | 38 |
 
-```
 
-# ─────────────────────────────────────────────────────────────────────────────
-# SECTION 8: UMAP + t-SNE
-# ─────────────────────────────────────────────────────────────────────────────
+#### SECTION 8: UMAP + t-SNE
+```
 lung <- RunUMAP(lung,  dims = 1:N_DIMS)
 p_umap <- DimPlot(lung, reduction = "umap", label = TRUE,
                    repel = TRUE, label.size = 4) +
@@ -663,7 +662,7 @@ ggsave("output/figures/11_UMAP_QC_overlay.png",
        p_qc_umap, width = 12, height = 10, dpi = 300)
 
 ```
-This visualization helps identify low-quality clusters, potential doublets, or stressed cells by highlighting QC metrics across the embedding.
+##### This visualization helps identify low-quality clusters, potential doublets, or stressed cells by highlighting QC metrics across the embedding.
 <p align="center">
   <img src="output/figures/11_UMAP_QC_overlay.png" width="750">
 </p>
@@ -672,12 +671,8 @@ This visualization helps identify low-quality clusters, potential doublets, or s
   <em>Figure 11. UMAP projection overlaid with QC metrics to assess cluster quality.</em>
 </p>
 
-
+#### SECTION 9: MARKER GENE IDENTIFICATION
 ```
-# ─────────────────────────────────────────────────────────────────────────────
-# SECTION 9: MARKER GENE IDENTIFICATION
-# ─────────────────────────────────────────────────────────────────────────────
-
 lung.markers <- FindAllMarkers(
   lung,
   only.pos        = TRUE,
@@ -698,7 +693,7 @@ write.csv(top10, "output/tables/02_top10_markers_per_cluster.csv",
           row.names = FALSE)
 cat("Marker genes saved.\n")
 ```
-### Output
+##### Output
 Cluster-specific marker genes were identified using differential expression analysis.
 - 📄 [All cluster markers](output/tables/01_all_cluster_markers.csv)  
 - 📄 [Top 10 markers per cluster](output/tables/02_top10_markers_per_cluster.csv)
@@ -717,7 +712,17 @@ p_heatmap <- DoHeatmap(lung, features = top5$gene, assay = "SCT") +
   ggtitle("Top 5 Marker Genes per Cluster")
 ggsave("output/figures/12_marker_heatmap.png",
        p_heatmap, width = 14, height = 10, dpi = 300)
+```
+##### This heatmap highlights cluster-specific gene expression patterns, enabling biological interpretation of tumor, immune, and stromal cell populations.
+<p align="center">
+  <img src="output/figures/12_marker_heatmap.png" width="800">
+</p>
 
+<p align="center">
+  <em>Figure 12. Heatmap showing top 5 marker genes per cluster based on differential expression (log2FC > 1).</em>
+</p>
+
+```
 # Dot plot of top 3 per cluster
 top3 <- lung.markers %>%
   group_by(cluster) %>%
@@ -730,61 +735,23 @@ p_dot_markers <- DotPlot(lung, features = unique(top3$gene), assay = "SCT") +
 ggsave("output/figures/13_marker_dotplot.png",
        p_dot_markers, width = 16, height = 6, dpi = 300)
 
+```
+##### This visualization provides a compact overview of cluster-specific gene expression, helping to validate cell type identities across tumor, immune, and stromal populations.
+<p align="center">
+  <img src="output/figures/13_marker_dotplot.png" width="850">
+</p>
 
-# ─────────────────────────────────────────────────────────────────────────────
-# SECTION 10: CANONICAL MARKER PANELS
-# ─────────────────────────────────────────────────────────────────────────────
-# Q1: What cell populations exist? Tumor vs TME?
-# These markers define the major cell types expected in a DTC sample
+<p align="center">
+  <em>Figure 13. Dot plot showing top 3 marker genes per cluster. Dot size represents the percentage of expressing cells, and color indicates average expression.</em>
+</p>
 
-# ── Panel A: Cell type identity markers ───────────────────────────────────────
-panel_identity <- list(
 
-  # Squamous cell carcinoma — the primary tumor cell type
-  "SCC Tumor"       = c("EPCAM", "KRT19", "KRT18", "KRT5", "KRT14",
-                         "TP63", "SOX2", "FGFR1", "EGFR"),
+#### SECTION 10: CANONICAL MARKER PANELS
 
-  # Mesenchymal / EMT (epithelial → mesenchymal transition)
-  "EMT / Mesenchymal" = c("VIM", "CDH2", "FN1", "SNAI1", "SNAI2",
-                            "TWIST1", "ZEB1", "ZEB2"),
+##### Q1: What cell populations exist? Tumor vs TME?
+##### These markers define the major cell types expected in a DTC sample
 
-  # T cells — general
-  "T cells"         = c("CD3D", "CD3E", "CD3G", "TRAC", "TRBC1"),
-
-  # CD8 cytotoxic T cells
-  "CD8 T cells"     = c("CD8A", "CD8B", "GZMB", "GZMK", "PRF1",
-                         "IFNG", "NKG7"),
-
-  # CD4 helper T cells
-  "CD4 T cells"     = c("CD4", "IL7R", "CCR7", "LTB", "SELL"),
-
-  # Regulatory T cells
-  "Treg"            = c("FOXP3", "IL2RA", "CTLA4", "IKZF2"),
-
-  # NK cells
-  "NK cells"        = c("NKG7", "GNLY", "KLRD1", "NCR1", "NCAM1"),
-
-  # B cells
-  "B cells"         = c("MS4A1", "CD79A", "CD74", "IGHM"),
-
-  # Monocytes / Macrophages
-  "Myeloid"         = c("LYZ", "CD14", "FCGR3A", "S100A8", "S100A9",
-                         "CST3", "CTSS"),
-
-  # M2 / Immunosuppressive macrophages
-  "M2 Macrophage"   = c("CD163", "MRC1", "IL10", "CCL18", "TGFB1"),
-
-  # Dendritic cells
-  "Dendritic cells" = c("FCER1A", "CST3", "IL3RA", "CLEC4C"),
-
-  # Cancer-associated fibroblasts
-  "CAF"             = c("COL1A1", "COL3A1", "FAP", "ACTA2",
-                         "PDGFRA", "THY1"),
-
-  # Endothelial cells
-  "Endothelial"     = c("PECAM1", "VWF", "CDH5", "ENG", "CLDN5")
-)
-
+```
 # ── Panel A: Cell type identity markers ───────────────────────────────────────
 panel_identity <- list(
   
@@ -858,6 +825,15 @@ ggsave(
   height = 8,
   dpi = 300
 )
+```
+<p align="center">
+  <img src="output/figures/14_cell_identity_dotplot.png" width="900">
+</p>
+
+<p align="center">
+  <em>Figure 14. Canonical marker gene dot plot showing expression patterns across clusters. Dot size represents the percentage of cells expressing a gene, while color intensity reflects average expression.</em>
+</p>
+```
 p1 <- DotPlot(lung, features = panel_identity_present$`SCC Tumor`) +
   RotatedAxis() + ggtitle("Tumor Markers")
 
@@ -874,6 +850,23 @@ ggsave("output/figures/14atumor_markers.png", p1, width = 10, height = 6)
 ggsave("output/figures/14btcell_markers.png", p2, width = 10, height = 6)
 ggsave("output/figures/14cmyeloid_markers.png", p3, width = 10, height = 6)
 ggsave("output/figures/14dcaf_markers.png", width = 10, height = 6)
+
+```
+<p align="center">
+  <img src="output/figures/14atumor_markers.png" width="45%">
+  <img src="output/figures/14btcell_markers.png" width="45%">
+</p>
+
+<p align="center">
+  <img src="output/figures/14cmyeloid_markers.png" width="45%">
+  <img src="output/figures/14dcaf_markers.png" width="45%">
+</p>
+
+<p align="center">
+  <em>Figure 14. Canonical marker panels: tumor, T cells, myeloid, and fibroblast populations.</em>
+</p>
+
+```
 # UMAP feature plots for key markers
 key_markers <- c("EPCAM", "KRT19", "VIM", "CDH2",
                   "CD3D", "CD8A", "NKG7", "MS4A1",
