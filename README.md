@@ -24,7 +24,7 @@ This repository contains a **demonstration workflow for single-cell RNA sequenci
 
 ---
 
-### 🔬 Single-cell RNA-seq data
+#### 🔬 Single-cell RNA-seq data
 
 - Platform: 10x Genomics Chromium X
 - Chemistry: 5' Gene Expression (v2)
@@ -35,7 +35,7 @@ This repository contains a **demonstration workflow for single-cell RNA sequenci
 ---
 
 
-### Repository Structure
+#### Repository Structure
 ```
 .
 ├── lung_dtc_seurat_analysis.R          # Complete analysis script (Sections 1–23)
@@ -62,7 +62,7 @@ This repository contains a **demonstration workflow for single-cell RNA sequenci
 
 ---
 
-### ⚙️ Pipeline Overview
+#### ⚙️ Pipeline Overview
 This repository demonstrates a **standard scRNA-seq analysis pipeline**, including:
 #### 1. Download input files, Environment Setup & Package Installation
 📦 Input Data: Only processed 10x Genomics gene expression data is used:
@@ -164,9 +164,8 @@ Seurat object saved as `.rds`. All metadata exported as CSV.
 
 ---
 
----
 
-### Requirements
+#### Requirements
 
 **R ≥ 4.3.0**
 
@@ -295,10 +294,6 @@ cat("Seurat version:", as.character(packageVersion("Seurat")), "\n\n")
 
 #### SECTION 3: LOAD DATA
 ```
-# Data: 3k Human Squamous Cell Lung Carcinoma DTCs
-# Platform: 10x Chromium X, 5' GEX
-# 36,601 genes × 2,616 cells (pre-Cell Ranger filtering)
-
 data <- Read10X_h5(
   "SC5pv2_GEX_Human_Lung_Carcinoma_DTC_filtered_feature_bc_matrix.h5"
 )
@@ -320,22 +315,25 @@ print(lung)
 
 
 #### SECTION 4: QUALITY CONTROL
+ NOTE — Tumor-specific QC thresholds:
+ Threshold         PBMC (healthy)    Lung Carcinoma DTC
+ nFeature_RNA max  2,500             6,000–8,000
+ percent.mt max    5%                20%
+
+Reasons:
+• Carcinoma cells are large and transcriptionally complex → more genes/UMIs
+• DTCs under metastatic stress → elevated mitochondrial activity is expected
+• Chromium X has higher sensitivity → genuine cells may have higher counts
+Applying PBMC thresholds would DISCARD real tumor cells.
+Here what are we questioning?
+| Metric          | Role                           |
+| --------------- | ------------------------------ |
+| UMI count       | “how much RNA did we capture?” |
+| % mitochondrial | “is the cell dying?”           |
+| gene count      | “how complex is the cell?”     |
+| ribosomal %     | “is protein machinery active?” |
 
 ```
-# NOTE — Tumor-specific QC thresholds:
-#
-# Threshold         PBMC (healthy)    Lung Carcinoma DTC
-# ─────────────────────────────────────────────────────
-# nFeature_RNA max  2,500             6,000–8,000
-# percent.mt max    5%                20%
-#
-# Reasons:
-#  • Carcinoma cells are large and transcriptionally complex → more genes/UMIs
-#  • DTCs under metastatic stress → elevated mitochondrial activity is expected
-#  • Chromium X has higher sensitivity → genuine cells may have higher counts
-#  Applying PBMC thresholds would DISCARD real tumor cells.
-
-
 # ── Compute QC metrics ────────────────────────────────────────────────────────
 
 # Mitochondrial genes — marker of cellular stress / apoptosis
@@ -350,7 +348,10 @@ lung[["log10_nCount"]] <- log10(lung$nCount_RNA + 1)
 cat("QC summary before filtering:\n")
 print(summary(lung@meta.data[, c("nFeature_RNA", "nCount_RNA",
                                   "percent.mt", "percent.rb")]))
-# Output: Cells before QC: 2521
+```
+##### Output: Cells before QC: 2521
+
+```
 # ── Visualize before filtering ────────────────────────────────────────────────
 
 p_qc1 <- VlnPlot(
@@ -365,13 +366,6 @@ ggsave("output/figures/01_QC_violin_before.png",
 ![QC Violin Plot](output/figures/01_QC_violin_before.png)
 *Figure 1. Distribution of gene counts, UMI counts, mitochondrial and ribosomal percentages before QC filtering.*
 
-# Here what are we questioning?
-| Metric          | Role                           |
-| --------------- | ------------------------------ |
-| UMI count       | “how much RNA did we capture?” |
-| % mitochondrial | “is the cell dying?”           |
-| gene count      | “how complex is the cell?”     |
-| ribosomal %     | “is protein machinery active?” |
 
 ```
 p_scatter1 <- FeatureScatter(lung, "nCount_RNA", "percent.mt") +
@@ -407,9 +401,12 @@ lung <- subset(
 cat(sprintf("Cells after QC:  %d\n", ncol(lung)))
 cat(sprintf("Genes retained:  %d\n", nrow(lung)))
 
-# Output: Cells after QC:  2387
-     Genes retained:  21542
+```
+##### Output: 
+Cells after QC:  2387
+Genes retained:  21542
 
+```
 # ── Visualize after filtering ─────────────────────────────────────────────────
 
 p_qc2 <- VlnPlot(
@@ -424,9 +421,10 @@ ggsave("output/figures/03_QC_violin_after.png",
 ![QC Violin Plot](output/figures/03_QC_violin_after.png)
 *Figure 1. Distribution of gene counts, UMI counts, mitochondrial and ribosomal percentages after filtering.*
 ```
-# ─────────────────────────────────────────────────────────────────────────────
-# SECTION 5: NORMALIZATION — SCTransform
-# ─────────────────────────────────────────────────────────────────────────────
+
+#### SECTION 5: NORMALIZATION — SCTransform
+
+```
 # SCTransform:
 #  • Replaces NormalizeData + FindVariableFeatures + ScaleData
 #  • Uses a regularized negative binomial regression to model UMI counts
