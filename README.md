@@ -435,8 +435,6 @@ ggsave("output/figures/03_QC_violin_after.png",
 ![QC Violin Plot](output/figures/03_QC_violin_after.png)
 
 ```
-```
-
 # ─────────────────────────────────────────────────────────────────────────────
 # SECTION 5: NORMALIZATION — SCTransform
 # ─────────────────────────────────────────────────────────────────────────────
@@ -476,8 +474,8 @@ ggsave("output/figures/04_variable_features.png",
 <p align="center">
   <em>Figure 4. Highly variable genes used for downstream analysis.</em>
 </p>
-```
 
+```
 # ─────────────────────────────────────────────────────────────────────────────
 # SECTION 6: DIMENSIONALITY REDUCTION — PCA
 # ─────────────────────────────────────────────────────────────────────────────
