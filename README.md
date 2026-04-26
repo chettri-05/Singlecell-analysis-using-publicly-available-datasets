@@ -649,6 +649,7 @@ ggsave("output/figures/09_UMAP_clusters.png",
 <p align="center">
   <em>Figure 9. UMAP projection showing clustering of lung carcinoma cells.</em>
 </p>
+
 ```
 lung <- RunTSNE(lung,  dims = 1:N_DIMS, verbose = FALSE)
 p_tsne <- DimPlot(lung, reduction = "tsne", label = TRUE,
@@ -657,7 +658,6 @@ p_tsne <- DimPlot(lung, reduction = "tsne", label = TRUE,
   theme(plot.title = element_text(hjust = 0.5, face = "bold"))
 ggsave("output/figures/10_tSNE_clusters.png",
        p_tsne, width = 9, height = 7, dpi = 300)
-
 ```
 <p align="center">
   <img src="output/figures/10_tSNE_clusters.png" width="700">
@@ -677,7 +677,9 @@ p_qc_umap <- FeaturePlot(
 ggsave("output/figures/11_UMAP_QC_overlay.png",
        p_qc_umap, width = 12, height = 10, dpi = 300)
 
+```
 
+```
 # ─────────────────────────────────────────────────────────────────────────────
 # SECTION 9: MARKER GENE IDENTIFICATION
 # ─────────────────────────────────────────────────────────────────────────────
