@@ -504,22 +504,15 @@ ggsave("output/figures/05_elbow_plot.png",
 print(lung[["pca"]], dims = 1:5, nfeatures = 5)
 ```
 
-### Output: 
-PC_ 1 
-Positive:  FTL, TYROBP, IFI30, APOE, C1QA 
-Negative:  CCL5, CD7, GZMB, IL32, CD3E 
-PC_ 2 
-Positive:  KRT19, KRT6A, FXYD3, KRT5, S100A2 
-Negative:  CCL5, CD74, HLA-DRA, C1QB, C1QA 
-PC_ 3 
-Positive:  CCL5, GZMB, CD7, CD8A, GZMA 
-Negative:  HSPA1A, CD74, MS4A1, CD79A, HSPA1B 
-PC_ 4 
-Positive:  CLU, IFITM3, TPSAB1, TPSB2, BACE2 
-Negative:  CD74, HLA-DRA, MS4A1, CD79A, BANK1 
-PC_ 5 
-Positive:  HSPA1A, HSPA1B, DNAJB1, HSPA6, RNASE1 
-Negative:  TPSAB1, CPA3, TPSB2, SLC24A3, HDC
+### PCA Loadings Summary
+
+| PC | Positive Markers | Negative Markers |
+|----|------------------|------------------|
+| PC1 | FTL, TYROBP, IFI30, APOE, C1QA | CCL5, CD7, GZMB, IL32, CD3E |
+| PC2 | KRT19, KRT6A, FXYD3, KRT5, S100A2 | CCL5, CD74, HLA-DRA, C1QB, C1QA |
+| PC3 | CCL5, GZMB, CD7, CD8A, GZMA | HSPA1A, CD74, MS4A1, CD79A, HSPA1B |
+| PC4 | CLU, IFITM3, TPSAB1, TPSB2, BACE2 | CD74, HLA-DRA, MS4A1, CD79A, BANK1 |
+| PC5 | HSPA1A, HSPA1B, DNAJB1, HSPA6, RNASE1 | TPSAB1, CPA3, TPSB2, SLC24A3, HDC |
 
 ```
 p_pca_load <- VizDimLoadings(lung, dims = 1:4, reduction = "pca")
@@ -550,9 +543,29 @@ ggsave("output/figures/07_PCA_scatter.png",
 </p>
 ```
 # Dimensional heatmaps — which genes drive each PC
-DimHeatmap(lung, dims = 1:15, cells = 500, balanced = TRUE)
+p_pca_heatmap <- DimHeatmap(
+  lung,
+  dims = 1:9,        # better for readability (you can keep 1:15 if you want)
+  cells = 500,
+  balanced = TRUE 
+# Save the plot
+ggsave(
+  filename = "output/figures/PCA_which driver gene drive pc.png",
+  plot     = p_pca_heatmap,
+  width    = 12,
+  height   = 10,
+  dpi      = 300
+)
 ```
+<p align="center">
+  <img src="output/figures/07_PCA_driver_genes.png" width="800">
+</p>
 
+<p align="center">
+  <em>Figure 7. Key genes driving principal components in the dataset.</em>
+</p>
+
+```
 # ─────────────────────────────────────────────────────────────────────────────
 # SECTION 7: CLUSTERING
 # ─────────────────────────────────────────────────────────────────────────────
@@ -568,7 +581,9 @@ lung <- FindClusters(lung, resolution = 0.3)
 lung <- FindClusters(lung, resolution = 0.5)
 lung <- FindClusters(lung, resolution = 0.8)
 
-# O: Modularity Optimizer version 1.3.0 by Ludo Waltman and Nees Jan van Eck
+```
+### Output: 
+Modularity Optimizer version 1.3.0 by Ludo Waltman and Nees Jan van Eck
 Number of nodes: 2387
 Number of edges: 76120
 Running Louvain algorithm...
@@ -578,13 +593,19 @@ Running Louvain algorithm...
 Maximum modularity in 10 random starts: 0.9338
 Number of communities: 9
 
+```
 > lung <- FindClusters(lung, resolution = 0.5)
+```
+### Output:
 Number of nodes: 2387
 Number of edges: 76120
 Maximum modularity in 10 random starts: 0.9065
 Number of communities: 12
 
+```
 > lung <- FindClusters(lung, resolution = 0.8)
+```
+### Output
 Number of nodes: 2387
 Number of edges: 76120
 Maximum modularity in 10 random starts: 0.8773
@@ -597,16 +618,33 @@ Interpretation
 | 0.5        | 12       | 0.9065     | balanced       |
 | 0.8        | 16       | 0.8773     | fine-grained   |
 
-# Use resolution 0.5 as working clustering
+Based on modularity and cluster granularity, resolution **0.5** was selected as it provides a balanced representation of tumor heterogeneity without over-fragmentation.
+
+
+```
 lung <- FindClusters(lung, resolution = 0.5)
 
 cat("Clusters found (resolution 0.5):", length(levels(Idents(lung))), "\n")
 cat("Cluster sizes:\n")
 print(table(Idents(lung)))
+```
+### Output:
+| Cluster | Cells |
+|--------|------|
+| 0 | 505 |
+| 1 | 363 |
+| 2 | 351 |
+| 3 | 244 |
+| 4 | 236 |
+| 5 | 182 |
+| 6 | 159 |
+| 7 | 100 |
+| 8 | 87 |
+| 9 | 66 |
+| 10 | 56 |
+| 11 | 38 |
 
-# O:   0   1   2   3   4   5   6   7   8   9  10  11 
-     505 363 351 244 236 182 159 100  87  66  56  38 
-
+```
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SECTION 8: UMAP + t-SNE
@@ -619,7 +657,6 @@ p_umap <- DimPlot(lung, reduction = "umap", label = TRUE,
                    repel = TRUE, label.size = 4) +
   ggtitle("UMAP — Leiden Clusters\n3k Lung Carcinoma DTCs") +
   theme(plot.title = element_text(hjust = 0.5, face = "bold"))
-
 p_tsne <- DimPlot(lung, reduction = "tsne", label = TRUE,
                    repel = TRUE, label.size = 4) +
   ggtitle("t-SNE — Leiden Clusters\n3k Lung Carcinoma DTCs") +
@@ -631,7 +668,10 @@ ggsave("output/figures/09_tSNE_clusters.png",
        p_tsne, width = 9, height = 7, dpi = 300)
 ggsave("output/figures/10_UMAP_tSNE_comparison.png",
        p_umap + p_tsne, width = 18, height = 7, dpi = 300)
+```
 
+
+```
 # QC overlay on UMAP — flag any low-quality clusters
 p_qc_umap <- FeaturePlot(
   lung,
