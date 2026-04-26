@@ -833,6 +833,7 @@ ggsave(
 <p align="center">
   <em>Figure 14. Canonical marker gene dot plot showing expression patterns across clusters. Dot size represents the percentage of cells expressing a gene, while color intensity reflects average expression.</em>
 </p>
+
 ```
 p1 <- DotPlot(lung, features = panel_identity_present$`SCC Tumor`) +
   RotatedAxis() + ggtitle("Tumor Markers")
@@ -879,15 +880,15 @@ p_feature_key <- FeaturePlot(lung, features = key_markers,
 ggsave("output/figures/15_key_markers_featureplot.png",
        p_feature_key, width = 20, height = 10, dpi = 300)
 
+```
 
-# ─────────────────────────────────────────────────────────────────────────────
-# SECTION 11: CELL TYPE ANNOTATION — SingleR
-# ─────────────────────────────────────────────────────────────────────────────
+#### SECTION 11: CELL TYPE ANNOTATION — SingleR
 | Reference        | Purpose                       |
 | ---------------- | ----------------------------- |
 | Blueprint/ENCODE | immune + blood + some stromal |
 | HPCA             | broad human primary tissues   |
 
+```
 # Load reference datasets
 ref_blueprint <- celldex::BlueprintEncodeData()    # immune-focused
 ref_hpca      <- celldex::HumanPrimaryCellAtlasData() # broad coverage
