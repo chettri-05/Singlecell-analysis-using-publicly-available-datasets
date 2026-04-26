@@ -550,7 +550,7 @@ p_pca_heatmap <- DimHeatmap(
   balanced = TRUE 
 # Save the plot
 ggsave(
-  filename = "output/figures/PCA_which driver gene drive pc.png",
+  filename = "output/figures/08_PCA_driver_genes.png",
   plot     = p_pca_heatmap,
   width    = 12,
   height   = 10,
@@ -558,11 +558,11 @@ ggsave(
 )
 ```
 <p align="center">
-  <img src="output/figures/07_PCA_driver_genes.png" width="800">
+  <img src="output/figures/08_PCA_driver_genes.png" width="800">
 </p>
 
 <p align="center">
-  <em>Figure 7. Key genes driving principal components in the dataset.</em>
+  <em>Figure 8. Key genes driving principal components in the dataset.</em>
 </p>
 
 ```
@@ -582,41 +582,25 @@ lung <- FindClusters(lung, resolution = 0.5)
 lung <- FindClusters(lung, resolution = 0.8)
 
 ```
-### Output: 
-Modularity Optimizer version 1.3.0 by Ludo Waltman and Nees Jan van Eck
-Number of nodes: 2387
-Number of edges: 76120
-Running Louvain algorithm...
-0%   10   20   30   40   50   60   70   80   90   100%
-[----|----|----|----|----|----|----|----|----|----|
-**************************************************|
-Maximum modularity in 10 random starts: 0.9338
-Number of communities: 9
+### Clustering Summary (Louvain Algorithm)
 
-```
-> lung <- FindClusters(lung, resolution = 0.5)
-```
-### Output:
-Number of nodes: 2387
-Number of edges: 76120
-Maximum modularity in 10 random starts: 0.9065
-Number of communities: 12
+| Resolution | Nodes | Edges | Modularity | Communities (Clusters) |
+|------------|-------|-------|------------|-------------------------|
+| 0.3        | 2387  | 76120 | 0.9338     | 9                       |
+| 0.5        | 2387  | 76120 | 0.9065     | 12                      |
+| 0.8        | 2387  | 76120 | 0.8773     | 16                      |
 
-```
-> lung <- FindClusters(lung, resolution = 0.8)
-```
-### Output
-Number of nodes: 2387
-Number of edges: 76120
-Maximum modularity in 10 random starts: 0.8773
-Number of communities: 16
-
-Interpretation
+### Interpretation
 | Resolution | Clusters | Modularity | Interpretation |
 | ---------- | -------- | ---------- | -------------- |
 | 0.3        | 9        | 0.9338     | very coarse    |
 | 0.5        | 12       | 0.9065     | balanced       |
 | 0.8        | 16       | 0.8773     | fine-grained   |
+
+**Interpretation:**  
+- Lower resolution (0.3) produces fewer, broader clusters (coarse structure)  
+- Higher resolution (0.8) increases granularity but may over-fragment biologically similar cells  
+- Resolution **0.5** provides a balanced clustering and was selected for downstream analysis
 
 Based on modularity and cluster granularity, resolution **0.5** was selected as it provides a balanced representation of tumor heterogeneity without over-fragmentation.
 
@@ -649,27 +633,39 @@ print(table(Idents(lung)))
 # ─────────────────────────────────────────────────────────────────────────────
 # SECTION 8: UMAP + t-SNE
 # ─────────────────────────────────────────────────────────────────────────────
-
 lung <- RunUMAP(lung,  dims = 1:N_DIMS)
-lung <- RunTSNE(lung,  dims = 1:N_DIMS, verbose = FALSE)
-
 p_umap <- DimPlot(lung, reduction = "umap", label = TRUE,
                    repel = TRUE, label.size = 4) +
   ggtitle("UMAP — Leiden Clusters\n3k Lung Carcinoma DTCs") +
   theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+ggsave("output/figures/09_UMAP_clusters.png",
+       p_umap, width = 9, height = 7, dpi = 300)
+
+```
+<p align="center">
+  <img src="output/figures/09_UMAP_clusters.png" width="700">
+</p>
+
+<p align="center">
+  <em>Figure 9. UMAP projection showing clustering of lung carcinoma cells.</em>
+</p>
+```
+lung <- RunTSNE(lung,  dims = 1:N_DIMS, verbose = FALSE)
 p_tsne <- DimPlot(lung, reduction = "tsne", label = TRUE,
                    repel = TRUE, label.size = 4) +
   ggtitle("t-SNE — Leiden Clusters\n3k Lung Carcinoma DTCs") +
   theme(plot.title = element_text(hjust = 0.5, face = "bold"))
-
-ggsave("output/figures/08_UMAP_clusters.png",
-       p_umap, width = 9, height = 7, dpi = 300)
-ggsave("output/figures/09_tSNE_clusters.png",
+ggsave("output/figures/10_tSNE_clusters.png",
        p_tsne, width = 9, height = 7, dpi = 300)
-ggsave("output/figures/10_UMAP_tSNE_comparison.png",
-       p_umap + p_tsne, width = 18, height = 7, dpi = 300)
-```
 
+```
+<p align="center">
+  <img src="output/figures/10_tSNE_clusters.png" width="700">
+</p>
+
+<p align="center">
+  <em>Figure 10. t-SNE projection of the dataset for comparison.</em>
+</p>
 
 ```
 # QC overlay on UMAP — flag any low-quality clusters
