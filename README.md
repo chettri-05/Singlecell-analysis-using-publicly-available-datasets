@@ -678,8 +678,7 @@ ggsave("output/figures/11_UMAP_QC_overlay.png",
        p_qc_umap, width = 12, height = 10, dpi = 300)
 
 ```
-## UMAP QC Overlay
-
+This visualization helps identify low-quality clusters, potential doublets, or stressed cells by highlighting QC metrics across the embedding.
 <p align="center">
   <img src="output/figures/11_UMAP_QC_overlay.png" width="750">
 </p>
@@ -687,7 +686,7 @@ ggsave("output/figures/11_UMAP_QC_overlay.png",
 <p align="center">
   <em>Figure 11. UMAP projection overlaid with QC metrics to assess cluster quality.</em>
 </p>
-This visualization helps identify low-quality clusters, potential doublets, or stressed cells by highlighting QC metrics across the embedding.
+
 
 ```
 # ─────────────────────────────────────────────────────────────────────────────
