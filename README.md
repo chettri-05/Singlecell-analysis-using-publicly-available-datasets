@@ -678,6 +678,16 @@ ggsave("output/figures/11_UMAP_QC_overlay.png",
        p_qc_umap, width = 12, height = 10, dpi = 300)
 
 ```
+## UMAP QC Overlay
+
+<p align="center">
+  <img src="output/figures/11_UMAP_QC_overlay.png" width="750">
+</p>
+
+<p align="center">
+  <em>Figure 11. UMAP projection overlaid with QC metrics to assess cluster quality.</em>
+</p>
+This visualization helps identify low-quality clusters, potential doublets, or stressed cells by highlighting QC metrics across the embedding.
 
 ```
 # ─────────────────────────────────────────────────────────────────────────────
@@ -700,11 +710,17 @@ top10 <- lung.markers %>%
 
 write.csv(lung.markers, "output/tables/01_all_cluster_markers.csv",
           row.names = TRUE)
-write.csv(top10,        "output/tables/02_top10_markers_per_cluster.csv",
+write.csv(top10, "output/tables/02_top10_markers_per_cluster.csv",
           row.names = FALSE)
-
 cat("Marker genes saved.\n")
+```
+### Output
+Cluster-specific marker genes were identified using differential expression analysis.
+- 📄 [All cluster markers](output/tables/01_all_cluster_markers.csv)  
+- 📄 [Top 10 markers per cluster](output/tables/02_top10_markers_per_cluster.csv)
+These markers were used to interpret biological identities of clusters, including tumor epithelial cells, immune populations, and stromal components.
 
+```
 # Heatmap — top 5 per cluster
 top5 <- lung.markers %>%
   group_by(cluster) %>%
