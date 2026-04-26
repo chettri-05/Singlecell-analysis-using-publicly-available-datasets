@@ -230,11 +230,9 @@ source("analysis.R")
 #       (Cancer-associated fibroblasts, Endothelial cells)
 # =============================================================================
 ```
-```
-# ─────────────────────────────────────────────────────────────────────────────
-# SECTION 1: INSTALL PACKAGES
-# ─────────────────────────────────────────────────────────────────────────────
 
+### SECTION 1: INSTALL PACKAGES
+```
 install.packages("BiocManager")
 BiocManager::install(
   c("ComplexHeatmap", "celldex", "SingleR", "AUCell",
@@ -260,11 +258,9 @@ remotes::install_github("satijalab/seurat-data",     quiet = TRUE)
 remotes::install_github("satijalab/azimuth",         quiet = TRUE)
 remotes::install_github("satijalab/seurat-wrappers", quiet = TRUE)
 ```
+#### SECTION 2: LOAD LIBRARIES
 ```
 
-# ─────────────────────────────────────────────────────────────────────────────
-# SECTION 2: LOAD LIBRARIES
-# ─────────────────────────────────────────────────────────────────────────────
 
 library(Seurat)
 library(SeuratObject)
