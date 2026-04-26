@@ -192,7 +192,7 @@ Seurat object saved as `.rds`. All metadata exported as CSV.
 
 ---
 
-## Quick Start
+#### Quick Start
 
 ```r
 # 1. Clone the repository
@@ -206,14 +206,9 @@ source("analysis.R")
 
 # Outputs will appear in output/ and output/images/
 ```
----
+
+#### Research Questions Addressed in this dataset
 ```
-# =============================================================================
-# scRNA-seq Analysis: 3k Human Squamous Cell Lung Carcinoma DTCs
-# Platform: 10x Chromium X, 5' Gene Expression
-# Tool: Seurat v5
-#
-# Research Questions Addressed:
 #   Q1. What cell populations exist in this DTC sample?
 #       (Tumor cells vs Tumor Microenvironment)
 #   Q2. Is there intra-tumor heterogeneity?
@@ -228,10 +223,10 @@ source("analysis.R")
 #       (Hypoxia, MYC, G2M, TNFa-NFkB, IFN-gamma)
 #   Q8. What stromal populations support the tumor?
 #       (Cancer-associated fibroblasts, Endothelial cells)
-# =============================================================================
+
 ```
 
-### SECTION 1: INSTALL PACKAGES
+#### SECTION 1: INSTALL PACKAGES
 ```
 install.packages("BiocManager")
 BiocManager::install(
@@ -260,8 +255,6 @@ remotes::install_github("satijalab/seurat-wrappers", quiet = TRUE)
 ```
 #### SECTION 2: LOAD LIBRARIES
 ```
-
-
 library(Seurat)
 library(SeuratObject)
 library(ggplot2)
@@ -299,10 +292,9 @@ cat("=== Lung Carcinoma DTC Analysis — Seurat v5 ===\n")
 cat("Seurat version:", as.character(packageVersion("Seurat")), "\n\n")
 
 ```
+
+#### SECTION 3: LOAD DATA
 ```
-# ─────────────────────────────────────────────────────────────────────────────
-# SECTION 3: LOAD DATA
-# ─────────────────────────────────────────────────────────────────────────────
 # Data: 3k Human Squamous Cell Lung Carcinoma DTCs
 # Platform: 10x Chromium X, 5' GEX
 # 36,601 genes × 2,616 cells (pre-Cell Ranger filtering)
@@ -323,14 +315,13 @@ lung <- CreateSeuratObject(
 
 cat("Initial object:\n")
 print(lung)
-### Output: 21542 features across 2521 samples within 1 assay, Active assay: RNA (21542 features, 0 variable features), 1 layer present: counts
+```
+##### Output: 21542 features across 2521 samples within 1 assay, Active assay: RNA (21542 features, 0 variable features), 1 layer present: counts
+
+
+#### SECTION 4: QUALITY CONTROL
 
 ```
-
-```
-# ─────────────────────────────────────────────────────────────────────────────
-# SECTION 4: QUALITY CONTROL
-# ─────────────────────────────────────────────────────────────────────────────
 # NOTE — Tumor-specific QC thresholds:
 #
 # Threshold         PBMC (healthy)    Lung Carcinoma DTC
