@@ -34,59 +34,14 @@ This repository contains a **demonstration workflow for single-cell RNA sequenci
 
 ---
 
-## 🎯 Project Objective & Structure
-
-This repository demonstrates a **standard scRNA-seq analysis pipeline**, including:
-
-- Quality control (QC) of single-cell data
-- Normalization and scaling
-- Identification of highly variable genes
-- Dimensionality reduction (PCA, UMAP)
-- Unsupervised clustering
-- Cell type annotation
-- Marker gene identification
-
-
-```
-NSCLC-scRNA-demo/
-│
-├── README.md
-├── LICENSE
-├── .gitignore
-│
-├── data/
-│   ├── raw/                  # downloaded 10x files (optional)
-│   └── processed/            # filtered_feature_bc_matrix.h5
-│
-├── scripts/
-│   ├── 01_load_qc.R
-│   ├── 02_normalization.R
-│   ├── 03_dimensionality_reduction.R
-│   ├── 04_clustering.R
-│   ├── 05_marker_analysis.R
-│
-│   ├── 01_load_qc.py
-│   ├── 02_preprocessing.py
-│   ├── 03_umap_clustering.py
-│
-├── results/
-│   ├── figures/
-│   ├── tables/
-│
-├── notebooks/
-│   ├── seurat_analysis.ipynb
-│   ├── scanpy_analysis.ipynb
-│
-└── docs/
-    └── workflow_diagram.png
-```
----
 
 ## Repository Structure
 ```
 .
 ├── lung_dtc_seurat_analysis.R          # Complete analysis script (Sections 1–23)
 ├── README.md
+├── data/
+│   ├── raw/                  # downloaded 10x files
 └── output/
     ├── lung_dtc_seurat_final.rds       # Final Seurat object (all analyses embedded)
     ├── session_info.txt
@@ -105,11 +60,10 @@ NSCLC-scRNA-demo/
         └── 07_full_cell_metadata.csv
 ```
 
-
 ---
 
 ## ⚙️ Pipeline Overview
-
+This repository demonstrates a **standard scRNA-seq analysis pipeline**, including:
 ### 1. Download input files, Environment Setup & Package Installation
 📦 Input Data: Only processed 10x Genomics gene expression data is used:
 - `filtered_feature_bc_matrix.h5` (preferred)
@@ -275,8 +229,8 @@ source("analysis.R")
 #   Q8. What stromal populations support the tumor?
 #       (Cancer-associated fibroblasts, Endothelial cells)
 # =============================================================================
-
-
+```
+```
 # ─────────────────────────────────────────────────────────────────────────────
 # SECTION 1: INSTALL PACKAGES
 # ─────────────────────────────────────────────────────────────────────────────
@@ -305,7 +259,8 @@ if (!requireNamespace("remotes", quietly = TRUE)) install.packages("remotes")
 remotes::install_github("satijalab/seurat-data",     quiet = TRUE)
 remotes::install_github("satijalab/azimuth",         quiet = TRUE)
 remotes::install_github("satijalab/seurat-wrappers", quiet = TRUE)
-
+```
+```
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SECTION 2: LOAD LIBRARIES
@@ -335,6 +290,8 @@ library(gridExtra)
 library(scales)
 library(cowplot)
 
+```
+```
 # ── Output directories ────────────────────────────────────────────────────────
 dir.create("output",               showWarnings = FALSE)
 dir.create("output/figures",       showWarnings = FALSE)
@@ -345,7 +302,8 @@ set.seed(42)   # reproducibility
 cat("=== Lung Carcinoma DTC Analysis — Seurat v5 ===\n")
 cat("Seurat version:", as.character(packageVersion("Seurat")), "\n\n")
 
-
+```
+```
 # ─────────────────────────────────────────────────────────────────────────────
 # SECTION 3: LOAD DATA
 # ─────────────────────────────────────────────────────────────────────────────
@@ -369,9 +327,10 @@ lung <- CreateSeuratObject(
 
 cat("Initial object:\n")
 print(lung)
-# O: 21542 features across 2521 samples within 1 assay, Active assay: RNA (21542 features, 0 variable features), 1 layer present: counts
+```
+### Output: 21542 features across 2521 samples within 1 assay, Active assay: RNA (21542 features, 0 variable features), 1 layer present: counts
 
-
+```
 # ─────────────────────────────────────────────────────────────────────────────
 # SECTION 4: QUALITY CONTROL
 # ─────────────────────────────────────────────────────────────────────────────
