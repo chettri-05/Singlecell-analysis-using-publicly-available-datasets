@@ -376,6 +376,7 @@ ggsave("output/figures/01_QC_violin_before.png",
        p_qc1, width = 18, height = 5, dpi = 300)
 ```
 ![QC Violin Plot](output/figures/01_QC_violin_before.png)
+*Figure 1. Distribution of gene counts, UMI counts, mitochondrial and ribosomal percentages before QC filtering.*
 
 # Here what are we questioning?
 | Metric          | Role                           |
@@ -402,6 +403,7 @@ ggsave("output/figures/02_QC_scatter_before.png",
        width = 18, height = 5, dpi = 300)
 ```
 ![QC Scatter Plot](output/figures/02_QC_scatter_before.png)
+*Figure 1. Scatter plot before QC filtering.*
 
 ```
 # ── Filter cells ──────────────────────────────────────────────────────────────
@@ -433,7 +435,7 @@ ggsave("output/figures/03_QC_violin_after.png",
        p_qc2, width = 18, height = 5, dpi = 300)
 ```
 ![QC Violin Plot](output/figures/03_QC_violin_after.png)
-
+*Figure 1. Distribution of gene counts, UMI counts, mitochondrial and ribosomal percentages after filtering.*
 ```
 # ─────────────────────────────────────────────────────────────────────────────
 # SECTION 5: NORMALIZATION — SCTransform
@@ -455,7 +457,7 @@ cat("SCTransform complete.\n")
 cat("Variable features (top 10):", head(VariableFeatures(lung), 10), "\n\n")
 ```
 ```
-# Plot higky variable features
+# Plot highly variable features
 p_hvg <- VariableFeaturePlot(lung)
 p_hvg <- LabelPoints(
   plot   = p_hvg,
@@ -465,7 +467,6 @@ p_hvg <- LabelPoints(
 ggsave("output/figures/04_variable_features.png",
        p_hvg, width = 10, height = 6, dpi = 300)
 ```
-![Highly variable genes](output/figures/04_variable_features.png)
 
 <p align="center">
   <img src="output/figures/04_variable_features.png" width="800">
@@ -489,11 +490,22 @@ p_elbow <- ElbowPlot(lung, ndims = 40) +
   ggtitle("Elbow Plot — Variance Explained per PC\n(red line = suggested cutoff)")
 ggsave("output/figures/05_elbow_plot.png",
        p_elbow, width = 8, height = 5, dpi = 300)
+```
+<p align="center">
+  <img src="output/figures/05_elbow_plot.png" width="700">
+</p>
 
+<p align="center">
+  <em>Figure 5. PCA elbow plot used to select the number of principal components.</em>
+</p>
+
+```
 # Top gene loadings per PC
 print(lung[["pca"]], dims = 1:5, nfeatures = 5)
+```
 
-#O: PC_ 1 
+### Output: 
+PC_ 1 
 Positive:  FTL, TYROBP, IFI30, APOE, C1QA 
 Negative:  CCL5, CD7, GZMB, IL32, CD3E 
 PC_ 2 
@@ -509,19 +521,37 @@ PC_ 5
 Positive:  HSPA1A, HSPA1B, DNAJB1, HSPA6, RNASE1 
 Negative:  TPSAB1, CPA3, TPSB2, SLC24A3, HDC
 
-
+```
 p_pca_load <- VizDimLoadings(lung, dims = 1:4, reduction = "pca")
 ggsave("output/figures/06_PCA_loadings.png",
        p_pca_load, width = 12, height = 11, dpi = 300)
+```
+<p align="center">
+  <img src="output/figures/06_PCA_loadings.png" width="800">
+</p>
 
+<p align="center">
+  <em>Figure 6. PCA loadings highlighting genes driving principal component variation.</em>
+</p>
+
+```
 p_pca_scatter <- DimPlot(lung, reduction = "pca") +
   ggtitle("PCA — All Cells")
 ggsave("output/figures/07_PCA_scatter.png",
        p_pca_scatter, width = 8, height = 6, dpi = 300)
 
+```
+<p align="center">
+  <img src="output/figures/07_PCA_scatter.png" width="700">
+</p>
+
+<p align="center">
+  <em>Figure 7. PCA projection of cells showing global transcriptional variation.</em>
+</p>
+```
 # Dimensional heatmaps — which genes drive each PC
 DimHeatmap(lung, dims = 1:15, cells = 500, balanced = TRUE)
-
+```
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SECTION 7: CLUSTERING
