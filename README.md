@@ -363,7 +363,7 @@ lung[["log10_nCount"]] <- log10(lung$nCount_RNA + 1)
 cat("QC summary before filtering:\n")
 print(summary(lung@meta.data[, c("nFeature_RNA", "nCount_RNA",
                                   "percent.mt", "percent.rb")]))
-# O: Cells before QC: 2521
+# Output: Cells before QC: 2521
 # ── Visualize before filtering ────────────────────────────────────────────────
 
 p_qc1 <- VlnPlot(
@@ -401,8 +401,9 @@ ggsave("output/figures/02_QC_scatter_before.png",
        p_scatter1 + p_scatter2 + p_scatter3,
        width = 18, height = 5, dpi = 300)
 ```
-```
+![QC Scatter Plot](output/figures/02_QC_scatter_before.png)
 
+```
 # ── Filter cells ──────────────────────────────────────────────────────────────
 
 cat(sprintf("Cells before QC: %d\n", ncol(lung)))
@@ -417,7 +418,7 @@ lung <- subset(
 cat(sprintf("Cells after QC:  %d\n", ncol(lung)))
 cat(sprintf("Genes retained:  %d\n", nrow(lung)))
 
-# O: Cells after QC:  2387
+# Output: Cells after QC:  2387
      Genes retained:  21542
 
 # ── Visualize after filtering ─────────────────────────────────────────────────
@@ -431,7 +432,9 @@ p_qc2 <- VlnPlot(
 ggsave("output/figures/03_QC_violin_after.png",
        p_qc2, width = 18, height = 5, dpi = 300)
 ```
+![QC Violin Plot](output/figures/03_QC_violin_after.png)
 
+```
 ```
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -452,8 +455,9 @@ lung <- SCTransform(
 
 cat("SCTransform complete.\n")
 cat("Variable features (top 10):", head(VariableFeatures(lung), 10), "\n\n")
-
-# Plot variable features
+```
+```
+# Plot higky variable features
 p_hvg <- VariableFeaturePlot(lung)
 p_hvg <- LabelPoints(
   plot   = p_hvg,
@@ -462,7 +466,17 @@ p_hvg <- LabelPoints(
 )
 ggsave("output/figures/04_variable_features.png",
        p_hvg, width = 10, height = 6, dpi = 300)
+```
+![Highly variable genes](output/figures/04_variable_features.png)
 
+<p align="center">
+  <img src="output/figures/04_variable_features.png" width="800">
+</p>
+
+<p align="center">
+  <em>Figure 4. Highly variable genes used for downstream analysis.</em>
+</p>
+```
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SECTION 6: DIMENSIONALITY REDUCTION — PCA
