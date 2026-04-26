@@ -327,8 +327,9 @@ lung <- CreateSeuratObject(
 
 cat("Initial object:\n")
 print(lung)
-```
 ### Output: 21542 features across 2521 samples within 1 assay, Active assay: RNA (21542 features, 0 variable features), 1 layer present: counts
+
+```
 
 ```
 # ─────────────────────────────────────────────────────────────────────────────
@@ -373,6 +374,8 @@ p_qc1 <- VlnPlot(
 
 ggsave("output/figures/01_QC_violin_before.png",
        p_qc1, width = 18, height = 5, dpi = 300)
+```
+![QC Violin Plot](output/figures/01_QC_violin_before.png)
 
 # Here what are we questioning?
 | Metric          | Role                           |
@@ -382,6 +385,7 @@ ggsave("output/figures/01_QC_violin_before.png",
 | gene count      | “how complex is the cell?”     |
 | ribosomal %     | “is protein machinery active?” |
 
+```
 p_scatter1 <- FeatureScatter(lung, "nCount_RNA", "percent.mt") +
   geom_hline(yintercept = 20, linetype = "dashed", color = "red") +
   ggtitle("UMI vs Mitochondrial %")
@@ -396,6 +400,8 @@ p_scatter3 <- FeatureScatter(lung, "nCount_RNA", "percent.rb") +
 ggsave("output/figures/02_QC_scatter_before.png",
        p_scatter1 + p_scatter2 + p_scatter3,
        width = 18, height = 5, dpi = 300)
+```
+```
 
 # ── Filter cells ──────────────────────────────────────────────────────────────
 
@@ -424,7 +430,9 @@ p_qc2 <- VlnPlot(
 
 ggsave("output/figures/03_QC_violin_after.png",
        p_qc2, width = 18, height = 5, dpi = 300)
+```
 
+```
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SECTION 5: NORMALIZATION — SCTransform
